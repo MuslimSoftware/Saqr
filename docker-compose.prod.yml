@@ -12,6 +12,10 @@ services:
       PORT: ${PORT:-8000}
       # Security
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
       # DB
       EXTERNAL_SQL_DB_HOST: ${EXTERNAL_SQL_DB_HOST}
       EXTERNAL_SQL_DB_PORT: ${EXTERNAL_SQL_DB_PORT}
