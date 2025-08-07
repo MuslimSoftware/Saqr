@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: movie-assistant-backend
+    ports:
+      - "${PORT}:${PORT}"
+    env_file:
+      - ./.env
+    volumes:
+      # Mount local code for development (optional: enables hot-reloading if uvicorn is configured)
+      # For production, you might remove this volume mount
+      - ./backend:/app
+      - ./google_key.json:/google_key.json
+    environment:
+      # --- Redis Configuration ---
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+
+      # --- Sakila MySQL Configuration (Movie Database) ---
+      EXTERNAL_SQL_DB_HOST: "${EXTERNAL_SQL_DB_HOST}"
+      EXTERNAL_SQL_DB_PORT: "${EXTERNAL_SQL_DB_PORT}"
+      EXTERNAL_SQL_DB_USER: "${EXTERNAL_SQL_DB_USER}"
+      EXTERNAL_SQL_DB_PASSWORD: "${EXTERNAL_SQL_DB_PASSWORD}"
+      EXTERNAL_SQL_DB_NAME: "${EXTERNAL_SQL_DB_NAME}"
+      EXTERNAL_SQL_DB_POOL_SIZE: "${EXTERNAL_SQL_DB_POOL_SIZE:-5}"
+      EXTERNAL_SQL_DB_MAX_OVERFLOW: "${EXTERNAL_SQL_DB_MAX_OVERFLOW:-10}"
+      EXTERNAL_SQL_DB_ECHO: "${EXTERNAL_SQL_DB_ECHO:-true}"
+      GOOGLE_APPLICATION_CREDENTIALS: "/google_key.json"
+
+      # --- Security ---
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY}"
+      
+      # --- API Keys ---
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+
+      # --- FastAPI/Uvicorn Settings ---
+      HOST: "${HOST}"
+      PORT: "${PORT}"
+    depends_on:
+      - redis
+      - sakila-mysql
+    # If using Uvicorn's reload for development, you can override the CMD
+    command: ["uvicorn", "app.main:app", "--host", "${HOST}", "--port", "${PORT}", "--reload"]
+
+  # Redis for caching/sessions
+  redis:
+    image: redis:7-alpine
+    container_name: movie-assistant-redis
+    ports:
+      - "6379:6379"  # Expose for debugging tools
+    volumes:
+      - redis_data:/data
+
+  sakila-mysql:
+    build: ./scripts/sakila_db
+    platform: linux/amd64
+    container_name: sakila-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: sakila
+  
+  frontend:
+    build:
+      context: ./frontend
+    container_name: movie-assistant-frontend
+    env_file:
+      - ./.env
+    environment:
+      # Make the backend accessible from the frontend via the docker network
+      FE_API_URL: "http://localhost:${PORT}/api/v1"
+    volumes:
+      # Mount code for hot-reloading during development
+      - ./frontend:/app:delegated
+    ports:
+      - "19006:19006"   # Expo web dev server
+      - "19002:19002"   # Expo devtools UI
+      - "8081:8081"     # Metro Bundler (native / proxy)
+    depends_on:
+      - backend
+
+volumes:
+  redis_data:

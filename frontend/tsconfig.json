@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-native",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@/api/*": [
+        "./src/api/*"
+      ],
+      "@/features/*": [
+        "./src/features/*"
+      ],
+      "@/components/*": [
+        "./src/features/shared/components/*"
+      ],
+      "@/constants/*": [
+        "./src/features/shared/constants/*"
+      ],
+      "@/context/*": [
+        "./src/features/shared/context/*"
+      ],
+      "@/assets/*": [
+        "./src/assets/*"
+      ],
+      "@/types/*": [
+        "./src/features/shared/types/*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "extends": "expo/tsconfig.base"
+}
