@@ -1,0 +1,25 @@
+.env
+.DS_Store
+google_key.json
+.claude
+
+# Backend
+**/__pycache__
+backend/gen-lang-client-0769363257-235ff0982dc9.json
+backend/.langgraph_api
+backend/venv
+backend/__pycache__
+backend/logs
+backend/data
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/build
+frontend/coverage
+frontend/logs
+frontend/data
+frontend/models
+frontend/tests
+frontend/expo-env.d.ts
+frontend/.expo
