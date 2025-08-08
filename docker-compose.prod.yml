@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile.prod
     image: saqr-backend:prod
     container_name: saqr-backend
+    entrypoint: ["/entrypoint.sh"]
     environment:
       HOST: ${HOST:-0.0.0.0}
       PORT: ${PORT:-8000}
@@ -17,11 +18,11 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
       # DB
-      EXTERNAL_SQL_DB_HOST: ${EXTERNAL_SQL_DB_HOST}
-      EXTERNAL_SQL_DB_PORT: ${EXTERNAL_SQL_DB_PORT}
-      EXTERNAL_SQL_DB_USER: ${EXTERNAL_SQL_DB_USER}
-      EXTERNAL_SQL_DB_PASSWORD: ${EXTERNAL_SQL_DB_PASSWORD}
-      EXTERNAL_SQL_DB_NAME: ${EXTERNAL_SQL_DB_NAME}
+      EXTERNAL_SQL_DB_HOST: ${EXTERNAL_SQL_DB_HOST:-sakila-mysql}
+      EXTERNAL_SQL_DB_PORT: ${EXTERNAL_SQL_DB_PORT:-3306}
+      EXTERNAL_SQL_DB_USER: ${EXTERNAL_SQL_DB_USER:-root}
+      EXTERNAL_SQL_DB_PASSWORD: ${EXTERNAL_SQL_DB_PASSWORD:-rootpass}
+      EXTERNAL_SQL_DB_NAME: ${EXTERNAL_SQL_DB_NAME:-sakila}
       EXTERNAL_SQL_DB_POOL_SIZE: ${EXTERNAL_SQL_DB_POOL_SIZE:-5}
       EXTERNAL_SQL_DB_MAX_OVERFLOW: ${EXTERNAL_SQL_DB_MAX_OVERFLOW:-10}
       EXTERNAL_SQL_DB_ECHO: ${EXTERNAL_SQL_DB_ECHO:-false}
@@ -72,8 +73,18 @@ services:
       MYSQL_DATABASE: sakila
     ports:
       - "3306:3306"
+    volumes:
+      - sakila_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p\"$${MYSQL_ROOT_PASSWORD}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  
 
 volumes:
   redis_data:
+  sakila_mysql_data:
 
 

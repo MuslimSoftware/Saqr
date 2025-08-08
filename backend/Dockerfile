@@ -46,4 +46,4 @@ EXPOSE ${BACKEND_PORT:-8000}
 
 RUN mkdir -p /app/data/cookies
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${BACKEND_PORT:-8000}"]
+CMD sh -c 'uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-${BACKEND_PORT:-8000}}"'

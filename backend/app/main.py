@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from app.config.environment import environment
-from app.infrastructure.database.internal import init_db
-from app.infrastructure.database.external import init_external_mongo_client, init_sql_engine, close_external_mongo_client, close_sql_engine
+from app.infrastructure.database.external import init_sql_engine, close_sql_engine
 from app.infrastructure.caching import init_redis_pool, close_redis_pool
 from app.features.auth.controllers import auth_controller
 from app.features.chat.controllers import chat_controller
@@ -13,8 +12,8 @@ import contextlib
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- Internal DBs ---
-    await init_db()
+    # --- Internal services ---
+    # MongoDB not required in production; only initialize Redis
     init_redis_pool()
 
     # --- External DBs ---

@@ -3,7 +3,7 @@ from app.features.agent.dspy.callback import ReActCallback
 from app.features.agent.dspy.memory import MemoryManager
 from app.config.environment import environment
 from app.features.agent.dspy.tools.scrape_website import create_scrape_website_tool
-from app.features.agent.graph.tools import query_sql_db, query_mongo_db, search_web
+from app.features.agent.graph.tools import query_sql_db, search_web
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
