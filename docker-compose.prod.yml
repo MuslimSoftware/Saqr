@@ -41,7 +41,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        FE_API_URL: ${FE_API_URL}
+        FE_API_URL: ${FE_API_URL:-http://localhost:8000/api/v1}
         BRAND_NAME: ${BRAND_NAME:-Saqr}
         BRAND_SLUG: ${BRAND_SLUG:-saqr}
         APP_ENV: production
