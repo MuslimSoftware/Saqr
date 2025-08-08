@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     BROWSER_EXECUTION_MODEL: str = "gemini-2.0-flash"
     BROWSER_PLANNER_MODEL: str = "gemini-2.0-flash-lite"
 
-    # Sakila MySQL Database Settings
+    # Sakila MySQL Database Settings  
     EXTERNAL_SQL_DB_HOST: str = "sakila-mysql"
     EXTERNAL_SQL_DB_PORT: int = 3306
     EXTERNAL_SQL_DB_USER: str = "root"

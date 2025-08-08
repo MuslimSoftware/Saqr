@@ -11,12 +11,9 @@ python-multipart==0.0.20
 httpx==0.28.1
 
 # Database
-motor==3.7.0
-pymongo==4.12.1
-beanie==1.29.0
+redis==6.0.0
 SQLAlchemy==2.0.40
 pymysql
-redis==6.0.0
 sqlparse==0.5.3
 
 # Authentication & Security
