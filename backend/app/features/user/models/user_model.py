@@ -1,21 +1,19 @@
-from beanie import Document
-from pydantic import EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
+from typing import Optional
 
-class User(Document):
-    """User model for MongoDB using Beanie ODM."""
-    email: EmailStr = Field(..., unique=True)
+class User(BaseModel):
+    """User model for Redis-based storage."""
+    id: Optional[str] = Field(None)
+    email: EmailStr = Field(..., description="User email address")
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Settings:
-        name = "users"
-        use_state_management = True
-
     class Config:
         json_schema_extra = {
             "example": {
+                "id": "user_123",
                 "email": "user@example.com",
                 "is_active": True,
                 "created_at": "2021-01-01T00:00:00Z",
