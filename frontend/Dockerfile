@@ -5,7 +5,9 @@ WORKDIR /app
 
 # Install dependencies first for better caching
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps --silent
+RUN node -v && npm -v \
+ && echo "[frontend] Installing dependencies..." \
+ && npm ci --legacy-peer-deps
 
 # Copy the rest of the app
 COPY . .
@@ -23,10 +25,16 @@ ENV EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL} \
     CI=1
 
 # Export static web build
-RUN npx --yes expo export --platform web
+ENV EXPO_DEBUG=1
+RUN echo "[frontend] Expo CLI version:" \
+ && npx --yes expo --version \
+ && echo "[frontend] Exporting Expo web build..." \
+ && npx --yes expo export --platform web
 
 # Install a simple static file server
-RUN npm install -g serve
+RUN echo "[frontend] Installing static file server (serve)..." \
+ && npm install -g serve \
+ && echo "[frontend] Build complete. Serving from /app/dist on port 3000"
 
 EXPOSE 3000
 

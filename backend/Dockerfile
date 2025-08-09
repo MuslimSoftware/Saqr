@@ -10,7 +10,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # System deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN echo "[backend] Installing system dependencies..." \
+ && apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl ca-certificates \
     # Playwright browser dependencies (Chromium)
     libnss3 libnss3-tools libatk1.0-0 libatk-bridge2.0-0 libcups2 libdbus-1-3 \
@@ -22,7 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency specs first for better caching
 COPY requirements.txt /app/requirements.txt
 
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN python --version && pip --version \
+ && echo "[backend] Installing Python dependencies..." \
+ && pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy app code
 COPY app /app/app
@@ -33,7 +36,8 @@ RUN chmod +x /entrypoint.sh
 RUN mkdir -p /app/data/cookies
 
 # Install Playwright and Chromium for browser-use
-RUN playwright install --with-deps chromium
+RUN echo "[backend] Installing Playwright Chromium..." \
+ && playwright install --with-deps chromium
 
 ENV HOST=0.0.0.0 \
     PORT=8000
