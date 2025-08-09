@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
-set -euo pipefail
+# POSIX sh doesn't support 'pipefail'; use -e -u only
+set -eu
 
 # Create Google credentials file from JSON env var stored in Coolify
-if [ "${GOOGLE_CREDENTIALS_JSON-}" ]; then
+if [ -n "${GOOGLE_CREDENTIALS_JSON:-}" ]; then
   mkdir -p /run/secrets
   # Avoid newline/escape surprises
   printf '%s' "$GOOGLE_CREDENTIALS_JSON" > /run/secrets/gcp-key.json
