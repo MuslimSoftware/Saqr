@@ -40,8 +40,11 @@ class ReActCallback(BaseCallback):
         self.operation_queue: List[PendingOperation] = []
         self.processing_queue = False
         
-        # Track tool events by tool name -> event_id (one trajectory per tool)
-        self.tool_events: Dict[str, str] = {}  # tool_name -> event_id
+        # Track tool events by tool name -> message_id (consistent IDs for updates)
+        self.tool_message_ids: Dict[str, str] = {}  # tool_name -> consistent_message_id
+        
+        # Track tool input payloads for updates
+        self.tool_input_payloads: Dict[str, Dict[str, Any]] = {}  # tool_name -> input_payload
         
         # Track call_id -> tool_name mapping for updates
         self._call_id_to_tool: Dict[str, str] = {}  # call_id -> tool_name
@@ -193,7 +196,9 @@ class ReActCallback(BaseCallback):
                     pass
             
             self._queue_operation("send_response", send_response, "Sending agent message")
-            self.tool_events.clear()
+            # Clear all tool tracking when conversation completes
+            self.tool_message_ids.clear()
+            self.tool_input_payloads.clear()
             self._call_id_to_tool.clear()
 
     def on_module_end(self, call_id, outputs, exception=None):
@@ -250,24 +255,30 @@ class ReActCallback(BaseCallback):
         else:
             input_payload = {"args": str(inputs)}
         
-        async def create_or_add_tool_event():
+        async def create_tool_message():
             try:
-                # Always create new tool event using the existing send_tool_message method
+                # Generate consistent message ID for this tool execution
+                import uuid
+                tool_message_id = str(uuid.uuid4())
+                self.tool_message_ids[tool_name] = tool_message_id
+                # Store input payload for later updates
+                self.tool_input_payloads[tool_name] = input_payload
+                
+                # Create initial tool message with consistent ID
                 await self.chat_service.send_tool_message(
                     chat=self.chat,
                     tool_name=tool_name,
-                    input_payload=input_payload
+                    input_payload=input_payload,
+                    message_id=tool_message_id
                 )
-                # Generate unique event ID for tracking
-                import uuid
-                self.tool_events[tool_name] = str(uuid.uuid4())
-                print(f"✅ Created tool message for {tool_name}")
+                print(f"✅ Created tool message for {tool_name} with ID {tool_message_id}")
             except Exception as e:
                 print(f"❌ FAILED: Could not create tool message for {tool_name} - {str(e)}")
-                # Remove failed entry
-                self.tool_events.pop(tool_name, None)
+                # Remove failed entries
+                self.tool_message_ids.pop(tool_name, None)
+                self.tool_input_payloads.pop(tool_name, None)
         
-        self._queue_operation("create_tool_event", create_or_add_tool_event, f"Creating/updating tool message for {tool_name}")
+        self._queue_operation("create_tool_message", create_tool_message, f"Creating tool message for {tool_name}")
 
         # Store call_id -> tool_name mapping
         self._call_id_to_tool[call_id] = tool_name
@@ -275,9 +286,9 @@ class ReActCallback(BaseCallback):
     def on_tool_end(self, call_id, outputs, exception=None):
         # Get tool name from call_id mapping
         tool_name = self._call_id_to_tool.get(call_id)
-        event_id = self.tool_events.get(tool_name) if tool_name else None
+        tool_message_id = self.tool_message_ids.get(tool_name) if tool_name else None
 
-        # Update the tool event if we have one
+        # Update the tool message if we have one
         if self.chat_service and self.chat and tool_name and tool_name != "finish":
             # Prepare output payload
             output_payload = {}
@@ -292,31 +303,39 @@ class ReActCallback(BaseCallback):
             # Determine status
             status = ToolStatus.ERROR if exception else ToolStatus.COMPLETED
             
-            async def update_tool_event():
-                # Wait a bit for the tool event to be created if not available yet
+            async def update_tool_message():
+                # Wait a bit for the tool message to be created if not available yet
                 max_retries = 10
                 retry_count = 0
-                current_event_id = self.tool_events.get(tool_name)
+                current_message_id = self.tool_message_ids.get(tool_name)
                 
-                while not current_event_id and retry_count < max_retries:
-                    print(f"   ⏳ Waiting for tool event creation... (retry {retry_count + 1}/{max_retries})")
+                while not current_message_id and retry_count < max_retries:
+                    print(f"   ⏳ Waiting for tool message creation... (retry {retry_count + 1}/{max_retries})")
                     await asyncio.sleep(0.1)  # Wait 100ms
-                    current_event_id = self.tool_events.get(tool_name)
+                    current_message_id = self.tool_message_ids.get(tool_name)
                     retry_count += 1
                 
-                # Use the new Redis/WebSocket broadcasting method
+                # Update the same tool message with results using consistent ID
                 try:
+                    # Get the stored input payload
+                    stored_input_payload = self.tool_input_payloads.get(tool_name, {})
+                    
                     await self.chat_service.send_tool_update(
                         chat=self.chat,
                         tool_name=tool_name,
                         status="completed" if status == ToolStatus.COMPLETED else "error",
-                        output_payload=output_payload
+                        output_payload=output_payload,
+                        input_payload=stored_input_payload,  # Include original input
+                        message_id=current_message_id  # Use same ID to update existing message
                     )
-                    print(f"   ✅ Tool update sent for {tool_name}")
+                    print(f"   ✅ Tool update sent for {tool_name} using message ID {current_message_id}")
                 except Exception as e:
                     print(f"   ❌ Error sending tool update for {tool_name}: {e}")
             
-            self._queue_operation("update_tool_event", update_tool_event, f"Updating tool message for {tool_name}")
+            self._queue_operation("update_tool_message", update_tool_message, f"Updating tool message for {tool_name}")
         
-        # Clean up call_id mapping
-        self._call_id_to_tool.pop(call_id, None)
+        # Clean up mappings for this specific tool
+        if tool_name:
+            self._call_id_to_tool.pop(call_id, None)
+            # Clean up after tool completes (but keep message ID for potential retry)
+            # Don't remove tool_message_ids and tool_input_payloads here in case of retries
