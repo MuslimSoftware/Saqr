@@ -40,13 +40,16 @@ services:
     build:
       context: ./frontend
       args:
-        FE_API_URL: ${FE_API_URL}
-        BRAND_NAME: ${BRAND_NAME}
-        BRAND_SLUG: ${BRAND_SLUG}
-        APP_ENV: production
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL}
+        EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME}
+        EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG}
+        EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV}
     container_name: saqr-frontend
     environment:
-      FE_API_URL: ${FE_API_URL}
+      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL}
+      EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME}
+      EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG}
+      EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV}
     ports:
       - "3000:3000"
     depends_on:
