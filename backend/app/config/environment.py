@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
 
-    # Internal MongoDB Settings (unused in production)
-    # MONGODB_URL: str = "mongodb://mongo:27017"
-    # MONGODB_DB_NAME: str = "saqr"
+    # Internal MongoDB Settings
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_DB_NAME: str = "saqr"
 
     # Security
     JWT_SECRET_KEY: str = "your-super-secret-key-change-this-in-production"

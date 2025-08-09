@@ -9,7 +9,10 @@ if TYPE_CHECKING:
     from app.config.dependencies import ChatServiceDep
     from app.features.chat.models import Chat
     from beanie import PydanticObjectId
-from app.features.chat.models.chat_event_model import ChatEventType, ReasoningPayload, ToolStatus
+# Types previously from chat_event_model - now defined locally
+from typing import Literal
+ChatEventType = Literal['message', 'reasoning', 'tool_use', 'tool_result']
+ToolStatus = Literal['pending', 'success', 'error']
 
 @dataclass
 class PendingOperation:

@@ -4,7 +4,6 @@ import logging
 
 import json
 from app.features.agent.dspy.agent import prompt
-from app.features.chat.models.chat_event_model import ToolStatus
 
 if TYPE_CHECKING:
     from app.config.dependencies import ChatServiceDep

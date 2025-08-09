@@ -121,29 +121,66 @@ async def get_user_chats(
 
 @router.get("/{chat_id}", response_model=GetChatDetailsResponse)
 async def get_chat_details(
-    chat_id: PydanticObjectId,
+    chat_id: str,  # Changed to accept string ObjectId from frontend
     current_user: UserDep,
-    chat_service: ChatServiceDep
+    redis_chat_service: RedisChatServiceDep
 ) -> GetChatDetailsResponse:
     """Gets basic details for a specific chat (name, dates, etc.), excluding messages."""
-    chat = await chat_service.get_chat_by_id(chat_id=chat_id, owner_id=current_user.id)
-    response_data = ChatData.model_validate(chat)
+    session_token = get_session_token(current_user)
+    # Convert ObjectId back to UUID for Redis operations
+    try:
+        redis_uuid = await redis_chat_service._objectid_to_uuid(chat_id, session_token)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    chat = await redis_chat_service.get_chat_by_id(redis_uuid, session_token)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Transform Redis chat data to match expected response format
+    chat_data = {
+        "id": PydanticObjectId(chat_id),  # Use the ObjectId format for response
+        "name": chat["name"],
+        "created_at": datetime.fromisoformat(chat["created_at"]),
+        "updated_at": datetime.fromisoformat(chat["updated_at"]),
+        "owner_id": PydanticObjectId(),  # Dummy for demo sessions
+        "latest_message_content": chat.get("latest_message_content"),
+        "latest_message_timestamp": datetime.fromisoformat(chat["latest_message_timestamp"]) if chat.get("latest_message_timestamp") else None
+    }
+    
+    response_data = ChatData.model_validate(chat_data)
     return GetChatDetailsResponse(data=response_data)
 
 @router.patch("/{chat_id}", response_model=GetChatDetailsResponse)
 async def update_chat(
-    chat_id: PydanticObjectId,
+    chat_id: str,  # Changed to accept string ObjectId from frontend
     update_payload: ChatUpdate,
     current_user: UserDep,
-    chat_service: ChatServiceDep
+    redis_chat_service: RedisChatServiceDep
 ) -> GetChatDetailsResponse:
     """Updates the name of a specific chat."""
-    updated_chat = await chat_service.update_chat_details(
-        chat_id=chat_id,
-        update_data=update_payload,
-        owner_id=current_user.id
-    )
-    updated_chat_data = ChatData.model_validate(updated_chat)
+    session_token = get_session_token(current_user)
+    # Convert ObjectId back to UUID for Redis operations
+    try:
+        redis_uuid = await redis_chat_service._objectid_to_uuid(chat_id, session_token)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Update chat name
+    updated_chat = await redis_chat_service.update_chat_name(redis_uuid, session_token, update_payload.name)
+    
+    # Transform Redis chat data to match expected response format
+    chat_data = {
+        "id": PydanticObjectId(chat_id),  # Use the ObjectId format for response
+        "name": updated_chat["name"],
+        "created_at": datetime.fromisoformat(updated_chat["created_at"]),
+        "updated_at": datetime.fromisoformat(updated_chat["updated_at"]),
+        "owner_id": PydanticObjectId(),  # Dummy for demo sessions
+        "latest_message_content": updated_chat.get("latest_message_content"),
+        "latest_message_timestamp": datetime.fromisoformat(updated_chat["latest_message_timestamp"]) if updated_chat.get("latest_message_timestamp") else None
+    }
+    
+    updated_chat_data = ChatData.model_validate(chat_data)
     return GetChatDetailsResponse(data=updated_chat_data)
 
 @router.get("/{chat_id}/messages", response_model=GetChatEventsResponse)
@@ -198,29 +235,35 @@ async def get_chat_events(
 
 @router.get("/{chat_id}/screenshots", response_model=GetChatScreenshotsResponse)
 async def get_chat_screenshots(
-    chat_id: PydanticObjectId,
+    chat_id: str,  # Changed to accept string ObjectId from frontend
     current_user: UserDep,
-    chat_service: ChatServiceDep,
+    redis_chat_service: RedisChatServiceDep,
     limit: int = Query(default=5, gt=0, le=100), 
     before_timestamp: Optional[datetime] = Query(default=None) 
 ) -> GetChatScreenshotsResponse:
     """Gets a paginated list of screenshot data URIs for a specific chat."""
-    screenshots = await chat_service.get_screenshots_for_chat(
-        chat_id=chat_id,
-        owner_id=current_user.id,
-        limit=limit,
-        before_timestamp=before_timestamp
+    # Screenshots are now stored in Redis - return empty for now as this wasn't fully implemented
+    from app.features.common.schemas.common_schemas import PaginatedResponseData
+    empty_screenshots = PaginatedResponseData(
+        items=[],
+        has_more=False,
+        next_cursor_timestamp=None,
+        total_items=0
     )
-    return GetChatScreenshotsResponse(data=screenshots) 
+    return GetChatScreenshotsResponse(data=empty_screenshots) 
 
 @router.delete("/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chat(
-    chat_id: PydanticObjectId,
+    chat_id: str,  # Changed to accept string ObjectId from frontend
     current_user: UserDep,
-    chat_service: ChatServiceDep
+    redis_chat_service: RedisChatServiceDep
 ) -> None:
     """Deletes a chat and all its related data (messages, screenshots, etc.)."""
-    await chat_service.delete_chat(
-        chat_id=chat_id,
-        owner_id=current_user.id
-    ) 
+    session_token = get_session_token(current_user)
+    # Convert ObjectId back to UUID for Redis operations
+    try:
+        redis_uuid = await redis_chat_service._objectid_to_uuid(chat_id, session_token)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    await redis_chat_service.delete_chat(redis_uuid, session_token) 
