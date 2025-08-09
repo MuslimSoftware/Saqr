@@ -170,7 +170,7 @@ class RedisChatService:
             raise AppException(status_code=500, error_code="MESSAGES_FETCH_FAILED", message=str(e))
     
     async def add_message(self, chat_id: str, user_id: str, content: str, role: str = "user", 
-                         metadata: Optional[Dict] = None) -> Dict[str, Any]:
+                         metadata: Optional[Dict] = None, message_id: Optional[str] = None) -> Dict[str, Any]:
         """Add a message to a chat."""
         session_token = self._extract_session_token(user_id)
         
@@ -178,7 +178,7 @@ class RedisChatService:
         await self.get_chat_by_id(chat_id, user_id)
         
         try:
-            message = await self.redis_storage.add_message(session_token, chat_id, content, role, metadata)
+            message = await self.redis_storage.add_message(session_token, chat_id, content, role, metadata, message_id)
             return message
         except ValueError as e:
             if "memory limit exceeded" in str(e).lower():
@@ -188,6 +188,21 @@ class RedisChatService:
             elif "chat not found" in str(e).lower():
                 raise AppException(status_code=404, error_code="CHAT_NOT_FOUND", message="Chat not found")
             raise AppException(status_code=500, error_code="MESSAGE_CREATION_FAILED", message=str(e))
+    
+    async def update_message(self, chat_id: str, user_id: str, message_id: str, content: str, metadata: Optional[Dict] = None) -> Dict[str, Any]:
+        """Update an existing message in a chat."""
+        session_token = self._extract_session_token(user_id)
+        
+        # Verify chat exists and user has access
+        await self.get_chat_by_id(chat_id, user_id)
+        
+        try:
+            updated_message = await self.redis_storage.update_message(session_token, chat_id, message_id, content, metadata)
+            return updated_message
+        except ValueError as e:
+            if "not found" in str(e).lower():
+                raise AppException(status_code=404, error_code="MESSAGE_NOT_FOUND", message="Message not found")
+            raise AppException(status_code=500, error_code="MESSAGE_UPDATE_FAILED", message=str(e))
     
     async def store_screenshot(self, chat_id: str, message_id: str, user_id: str, 
                               screenshot_data: bytes, content_type: str = "image/png") -> str:

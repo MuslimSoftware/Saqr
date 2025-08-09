@@ -160,6 +160,9 @@ class ChatService:
         }
         
         await self._broadcast_message(chat, get_tool_display_name(tool_name), "agent", "tool", tool_payload, message_id)
+        
+        # Store tool message in Redis
+        await self._update_tool_message_in_redis(chat, get_tool_display_name(tool_name), tool_payload, message_id)
 
     async def send_tool_update(self, chat: Chat, tool_name: str, status: str, output_payload: Optional[Dict[str, Any]] = None, input_payload: Dict[str, Any] = None, message_id: str = None) -> None:
         """Helper to broadcast tool updates using Redis and WebSocket."""
@@ -187,6 +190,9 @@ class ChatService:
         
         content = get_tool_display_name(tool_name)
         await self._broadcast_message(chat, content, "agent", "tool", tool_payload, message_id)
+        
+        # Store tool update in Redis
+        await self._update_tool_message_in_redis(chat, content, tool_payload, message_id)
 
     async def _broadcast_message(self, chat: Chat, content: str, author: str, msg_type: str, payload: Optional[Dict[str, Any]] = None, message_id: str = None) -> None:
         """Internal helper to broadcast messages via WebSocket and store in Redis."""
@@ -216,7 +222,8 @@ class ChatService:
             print(f"[DEBUG] Broadcasted {msg_type} message from {author}: {content[:50]}...")
             
             # For agent messages, also store in Redis for chat history
-            if author == "agent" and msg_type in ["message", "error", "tool"]:
+            # Note: Tool messages are handled separately by _update_tool_message_in_redis
+            if author == "agent" and msg_type in ["message", "error", "reasoning"]:
                 try:
                     if self.current_session_token:
                         # Store in Redis using the Redis chat service
@@ -227,13 +234,14 @@ class ChatService:
                         chat_id_str = str(chat.id)
                         redis_uuid = await redis_service._objectid_to_uuid(chat_id_str, self.current_session_token)
                         
-                        # Store the agent message in Redis
+                        # Store the agent message in Redis with provided message ID
                         await redis_service.add_message(
                             redis_uuid, 
                             self.current_session_token, 
                             content, 
                             "agent", 
-                            payload  # Store payload as metadata
+                            payload,  # Store payload as metadata
+                            msg_id    # Use the provided message ID
                         )
                         print(f"[DEBUG] ✅ Agent message stored in Redis for chat history")
                         
@@ -247,3 +255,41 @@ class ChatService:
         except Exception as e:
             print(f"Error broadcasting message: {e}")
             # Don't raise the exception to avoid breaking the agent flow
+    
+    async def _update_tool_message_in_redis(self, chat: Chat, content: str, payload: Dict[str, Any], message_id: str) -> None:
+        """Update a tool message in Redis instead of creating a new one."""
+        try:
+            if self.current_session_token and message_id:
+                from app.config.dependencies.services import get_redis_chat_service
+                redis_service = get_redis_chat_service()
+                
+                # Convert ObjectId back to UUID for Redis operations
+                chat_id_str = str(chat.id)
+                redis_uuid = await redis_service._objectid_to_uuid(chat_id_str, self.current_session_token)
+                
+                # Try to update the existing message, if it fails, create a new one
+                try:
+                    await redis_service.update_message(
+                        redis_uuid, 
+                        self.current_session_token, 
+                        message_id,
+                        content, 
+                        payload  # Updated payload as metadata
+                    )
+                    print(f"[DEBUG] ✅ Tool message updated in Redis")
+                except Exception as update_error:
+                    print(f"[DEBUG] ⚠️ Tool message update failed, creating new: {update_error}")
+                    # Fall back to creating the message if update fails (first time)
+                    await redis_service.add_message(
+                        redis_uuid, 
+                        self.current_session_token, 
+                        content, 
+                        "agent", 
+                        payload,
+                        message_id
+                    )
+                    print(f"[DEBUG] ✅ Tool message created in Redis as fallback")
+                    
+        except Exception as e:
+            print(f"[DEBUG] ❌ Error handling tool message in Redis: {e}")
+            # Don't fail the broadcast if storage fails

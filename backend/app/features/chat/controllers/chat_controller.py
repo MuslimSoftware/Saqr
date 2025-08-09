@@ -210,15 +210,21 @@ async def get_chat_events(
     # Transform messages to ChatEvent format for compatibility
     chat_events = []
     for msg in messages:
-        # Parse metadata to check for tool payloads
+        # Parse metadata to check for special message types
         metadata = msg.get("metadata", {})
         msg_type = "message"
         payload = None
         
-        # If metadata contains tool information, this is a tool message
-        if isinstance(metadata, dict) and "tool_calls" in metadata:
-            msg_type = "tool"
-            payload = metadata
+        # Check for different message types based on metadata
+        if isinstance(metadata, dict):
+            if "tool_calls" in metadata:
+                # This is a tool message
+                msg_type = "tool"
+                payload = metadata
+            elif "trajectory" in metadata or "status" in metadata:
+                # This is a reasoning message
+                msg_type = "reasoning"
+                payload = metadata
         
         chat_event = {
             "_id": msg["id"],

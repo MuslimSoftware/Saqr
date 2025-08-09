@@ -18,9 +18,15 @@ export const ToolMessage: React.FC<ToolMessageProps> = React.memo(({ item }) => 
   
   const toolPayload = item.payload as ToolPayload | null;
   const toolCalls = toolPayload?.tool_calls || [];
-  const isInProgress = toolPayload?.status === 'started' || toolPayload?.status === 'in_progress';
-  const hasError = toolPayload?.status === 'error';
-  const isCompleted = toolPayload?.status === 'completed';
+  const status = toolPayload?.status || 'started'; // Default to 'started' if undefined
+  
+  // Early return if no payload exists - shouldn't happen but prevents crashes
+  if (!toolPayload) {
+    return null;
+  }
+  const isInProgress = status === 'started' || status === 'in_progress';
+  const hasError = status === 'error';
+  const isCompleted = status === 'completed';
   
   // Get the latest tool call for display
   const latestToolCall = toolCalls[toolCalls.length - 1];
@@ -86,7 +92,7 @@ export const ToolMessage: React.FC<ToolMessageProps> = React.memo(({ item }) => 
         />
       );
     }
-  }, [isInProgress, hasError, isCompleted, theme.colors.text.primary, theme.colors.indicators.error]);
+  }, [status, theme.colors.text.primary, theme.colors.indicators.error]);
 
   const chevronIcon = useMemo(() => (
     toolCalls.length > 0 ? (

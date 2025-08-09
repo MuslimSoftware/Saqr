@@ -176,15 +176,7 @@ async def prompt(
         error_message = f"DSPy ReAct parsing error: {str(e)}"
         print(error_message)
         
-        # Broadcast error to frontend if chat service is available
-        if chat_service and chat:
-            try:
-                await chat_service.send_error_message(
-                    chat=chat,
-                    content=f"I encountered a technical error while processing your request. The system had trouble parsing the response format. Please try rephrasing your question or try again in a moment.\n\nTechnical details: {str(e)}"
-                )
-            except Exception as broadcast_error:
-                print(f"Failed to broadcast error to frontend: {broadcast_error}")
+        pass
         
         # Re-raise the exception so it gets handled properly by the calling code
         raise e
