@@ -16,6 +16,12 @@ else
   echo "[entrypoint] GOOGLE_CREDENTIALS_JSON not provided; skipping credentials file"
 fi
 
+# If no command is provided, run uvicorn with sensible defaults
+if [ "$#" -eq 0 ]; then
+  DEFAULT_PORT=${PORT:-8000}
+  set -- uvicorn app.main:app --host 0.0.0.0 --port "$DEFAULT_PORT" --log-level info
+fi
+
 # Hand off to the real server process (PID 1 signal-friendly)
 echo "[entrypoint] Exec: $@"
 exec "$@"
