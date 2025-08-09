@@ -210,13 +210,23 @@ async def get_chat_events(
     # Transform messages to ChatEvent format for compatibility
     chat_events = []
     for msg in messages:
+        # Parse metadata to check for tool payloads
+        metadata = msg.get("metadata", {})
+        msg_type = "message"
+        payload = None
+        
+        # If metadata contains tool information, this is a tool message
+        if isinstance(metadata, dict) and "tool_calls" in metadata:
+            msg_type = "tool"
+            payload = metadata
+        
         chat_event = {
             "_id": msg["id"],
             "chat_id": chat_id,
             "author": "user" if msg["role"] == "user" else "agent",
-            "type": "message",
+            "type": msg_type,
             "content": msg["content"],
-            "payload": None,
+            "payload": payload,
             "created_at": datetime.fromisoformat(msg["timestamp"]),
             "updated_at": datetime.fromisoformat(msg["timestamp"])
         }

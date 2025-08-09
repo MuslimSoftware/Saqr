@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, View, Pressable, Text, ActivityIndicator, Platform, ScrollView } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useTheme } from '@/features/shared/context/ThemeContext';
@@ -52,7 +52,7 @@ export const ToolMessage: React.FC<ToolMessageProps> = React.memo(({ item }) => 
     }
   };
 
-  const getToolIcon = () => {
+  const toolIcon = useMemo(() => {
     if (isInProgress) {
       return (
         <Ionicons 
@@ -86,7 +86,17 @@ export const ToolMessage: React.FC<ToolMessageProps> = React.memo(({ item }) => 
         />
       );
     }
-  };
+  }, [isInProgress, hasError, isCompleted, theme.colors.text.primary, theme.colors.indicators.error]);
+
+  const chevronIcon = useMemo(() => (
+    toolCalls.length > 0 ? (
+      <Ionicons
+        name={isExpanded ? 'chevron-down' : 'chevron-forward'}
+        size={iconSizes.small}
+        color={theme.colors.text.secondary}
+      />
+    ) : null
+  ), [toolCalls.length, isExpanded, theme.colors.text.secondary]);
 
   const renderContent = () => {
     if (isInProgress && !item.content) {
@@ -152,7 +162,7 @@ export const ToolMessage: React.FC<ToolMessageProps> = React.memo(({ item }) => 
             {isInProgress ? (
               <ActivityIndicator size="small" color={theme.colors.text.primary} />
             ) : (
-              getToolIcon()
+              toolIcon
             )}
           </View>
           <View style={styles.contentContainer}>
@@ -160,13 +170,7 @@ export const ToolMessage: React.FC<ToolMessageProps> = React.memo(({ item }) => 
           </View>
         </View>
         <View style={styles.dropdownIconContainer}>
-          {toolCalls.length > 0 ? (
-            <Ionicons
-              name={isExpanded ? 'chevron-down' : 'chevron-forward'}
-              size={iconSizes.small}
-              color={theme.colors.text.secondary}
-            />
-          ) : null}
+          {chevronIcon}
         </View>
       </Pressable>
 

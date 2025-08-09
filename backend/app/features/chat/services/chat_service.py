@@ -216,7 +216,7 @@ class ChatService:
             print(f"[DEBUG] Broadcasted {msg_type} message from {author}: {content[:50]}...")
             
             # For agent messages, also store in Redis for chat history
-            if author == "agent" and msg_type in ["message", "error"]:
+            if author == "agent" and msg_type in ["message", "error", "tool"]:
                 try:
                     if self.current_session_token:
                         # Store in Redis using the Redis chat service
