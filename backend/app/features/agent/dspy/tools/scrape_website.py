@@ -7,7 +7,7 @@ from browser_use.agent.views import AgentOutput, AgentHistoryList, AgentBrain
 from browser_use.browser.views import BrowserState
 import os
 import tempfile
-from bson import ObjectId
+from beanie import PydanticObjectId
 from app.config.environment import environment
 
 if TYPE_CHECKING:
@@ -162,7 +162,7 @@ async def new_step_callback_save_screenshot(
             
             # Save screenshot to the chat
             created_screenshot = await screenshot_repo.create_screenshot(
-                chat_id=ObjectId(chat.id), 
+                chat_id=PydanticObjectId(str(chat.id)), 
                 image_data=data_uri,
                 page_summary=current_state.page_summary,
                 evaluation_previous_goal=current_state.evaluation_previous_goal,

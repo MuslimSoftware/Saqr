@@ -31,7 +31,8 @@ class MemoryManager:
         Uses summarization for long conversations and keeps recent messages detailed.
         Includes messages, tool calls, and results.
         """
-        if not self.chat_service or not self.chat:
+        if not self.chat_service or not self.chat or not self.chat.id:
+            print("Missing chat_service, chat, or chat.id")
             return dspy.History(messages=[])
             
         try:
@@ -48,6 +49,8 @@ class MemoryManager:
             
         except Exception as e:
             print(f"Error retrieving conversation history: {e}")
+            print(f"Chat ID: {self.chat.id if self.chat else None}")
+            print(f"Chat service available: {self.chat_service is not None}")
             return dspy.History(messages=[])
     
     async def get_recent_tool_results(self, tool_name: str = None, limit: int = 5) -> List[Dict[str, Any]]:
@@ -61,7 +64,8 @@ class MemoryManager:
         Returns:
             List of recent tool results with tool name, inputs, outputs, and status
         """
-        if not self.chat_service or not self.chat:
+        if not self.chat_service or not self.chat or not self.chat.id:
+            print("Missing chat_service, chat, or chat.id for tool results")
             return []
             
         try:
@@ -102,6 +106,8 @@ class MemoryManager:
             
         except Exception as e:
             print(f"Error retrieving tool results: {e}")
+            print(f"Chat ID: {self.chat.id if self.chat else None}")
+            print(f"Chat service available: {self.chat_service is not None}")
             return []
     
     async def _get_summarized_history(self, all_events: List[Dict[str, Any]]) -> dspy.History:
@@ -130,6 +136,10 @@ class MemoryManager:
     
     async def _fetch_all_events(self, limit: int) -> List[Dict[str, Any]]:
         """Fetch all types of events (messages, tools, reasoning) from the chat service."""
+        
+        if not self.chat_service or not self.chat or not self.chat.id:
+            print("Missing chat_service, chat, or chat.id in _fetch_all_events")
+            return []
         
         # Get all events for the chat (messages, tools, reasoning)
         events = await self.chat_service.chat_event_repository.get_events_for_chat(
