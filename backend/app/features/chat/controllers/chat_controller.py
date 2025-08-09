@@ -242,15 +242,49 @@ async def get_chat_screenshots(
     before_timestamp: Optional[datetime] = Query(default=None) 
 ) -> GetChatScreenshotsResponse:
     """Gets a paginated list of screenshot data URIs for a specific chat."""
-    # Screenshots are now stored in Redis - return empty for now as this wasn't fully implemented
-    from app.features.common.schemas.common_schemas import PaginatedResponseData
-    empty_screenshots = PaginatedResponseData(
-        items=[],
-        has_more=False,
-        next_cursor_timestamp=None,
-        total_items=0
-    )
-    return GetChatScreenshotsResponse(data=empty_screenshots) 
+    session_token = get_session_token(current_user)
+    
+    try:
+        # Convert ObjectId back to UUID for Redis operations
+        redis_uuid = await redis_chat_service._objectid_to_uuid(chat_id, session_token)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    try:
+        # Get screenshots from Redis
+        screenshots = await redis_chat_service.get_chat_screenshots_for_redis(
+            redis_uuid, session_token, limit, before_timestamp
+        )
+        
+        # Create paginated response
+        from app.features.common.schemas.common_schemas import PaginatedResponseData
+        total_count = len(screenshots)  # For simplicity, using current batch size as total
+        has_more = len(screenshots) == limit  # Has more if we got exactly the limit
+        
+        next_cursor_timestamp = None
+        if screenshots and has_more:
+            next_cursor_timestamp = screenshots[-1]['created_at']
+        
+        paginated_screenshots = PaginatedResponseData(
+            items=screenshots,
+            has_more=has_more,
+            next_cursor_timestamp=next_cursor_timestamp,
+            total_items=total_count
+        )
+        
+        return GetChatScreenshotsResponse(data=paginated_screenshots)
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to get screenshots for chat {chat_id}: {e}")
+        # Return empty response on error to avoid breaking the frontend
+        from app.features.common.schemas.common_schemas import PaginatedResponseData
+        empty_screenshots = PaginatedResponseData(
+            items=[],
+            has_more=False,
+            next_cursor_timestamp=None,
+            total_items=0
+        )
+        return GetChatScreenshotsResponse(data=empty_screenshots) 
 
 @router.delete("/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chat(

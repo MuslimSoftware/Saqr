@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import json
 import uuid
 import hashlib
+import base64
 from beanie import PydanticObjectId
 
 from app.infrastructure.caching.redis import RedisStorage, RedisSessionManager
@@ -215,6 +216,57 @@ class RedisChatService:
             return screenshot
         except Exception as e:
             raise AppException(status_code=500, error_code="SCREENSHOT_FETCH_FAILED", message=str(e))
+    
+    async def get_chat_screenshots_for_redis(self, chat_id: str, user_id: str, limit: int = 5, before_timestamp: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Get screenshots for a specific chat from Redis."""
+        session_token = self._extract_session_token(user_id)
+        
+        try:
+            # Get all screenshot keys for this session
+            screenshot_keys = await self.redis_storage.redis_client.keys(f"session:{session_token}:screenshot:*")
+            screenshots = []
+            
+            for screenshot_key in screenshot_keys:
+                screenshot_raw = await self.redis_storage.redis_client.hgetall(screenshot_key)
+                if screenshot_raw and 'metadata' in screenshot_raw:
+                    metadata = json.loads(screenshot_raw['metadata'])
+                    
+                    # Filter by chat_id
+                    if metadata.get('chat_id') == chat_id:
+                        # Convert to frontend format
+                        image_data = None
+                        if 'data' in screenshot_raw:
+                            # Redis stores bytes, need to base64 encode for data URI
+                            if isinstance(screenshot_raw['data'], bytes):
+                                base64_data = base64.b64encode(screenshot_raw['data']).decode('utf-8')
+                            else:
+                                # Data is already string (base64 or other)
+                                base64_data = screenshot_raw['data']
+                            image_data = f"data:{metadata['content_type']};base64,{base64_data}"
+                        
+                        screenshot_data = {
+                            "id": metadata['id'],
+                            "chat_id": metadata['chat_id'],
+                            "message_id": metadata['message_id'],
+                            "image_data": image_data,
+                            "memory": f"Screenshot from message {metadata['message_id'][:8]}...",  # Simple memory/context
+                            "created_at": datetime.fromisoformat(metadata['created_at']),
+                            "updated_at": datetime.fromisoformat(metadata['created_at'])
+                        }
+                        screenshots.append(screenshot_data)
+            
+            # Sort by created_at descending (newest first)
+            screenshots.sort(key=lambda x: x['created_at'], reverse=True)
+            
+            # Apply before_timestamp filter if provided
+            if before_timestamp:
+                screenshots = [s for s in screenshots if s['created_at'] < before_timestamp]
+            
+            # Apply limit
+            return screenshots[:limit]
+            
+        except Exception as e:
+            raise AppException(status_code=500, error_code="SCREENSHOTS_FETCH_FAILED", message=str(e))
     
     async def delete_chat(self, chat_id: str, user_id: str) -> None:
         """Delete a chat and all its messages."""
