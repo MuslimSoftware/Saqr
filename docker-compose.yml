@@ -30,8 +30,6 @@ services:
       # Google credentials (Coolify-friendly)
       GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON}
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp-key.json
-    ports:
-      - "8000:8000"
     depends_on:
       - redis
       - sakila-mysql
@@ -40,26 +38,22 @@ services:
     build:
       context: ./frontend
       args:
-        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL}
-        EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME}
-        EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG}
-        EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV}
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-https://saqr-api.younesbenketira.com}
+        EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr}
+        EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr}
+        EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV:-production}
     container_name: saqr-frontend
     environment:
-      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL}
-      EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME}
-      EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG}
-      EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV}
-    ports:
-      - "3000:3000"
+      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-}
+      EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr}
+      EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr}
+      EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV:-production}
     depends_on:
       - backend
 
   redis:
     image: redis:7-alpine
     container_name: saqr-redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
 
@@ -70,8 +64,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: sakila
-    ports:
-      - "3306:3306"
     volumes:
       - sakila_mysql_data:/var/lib/mysql
     healthcheck:
