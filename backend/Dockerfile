@@ -45,6 +45,7 @@ ENV HOST=0.0.0.0 \
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Add explicit log level and reload disabled (prod)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
 
 

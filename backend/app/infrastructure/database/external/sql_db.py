@@ -1,6 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 from app.config.environment import environment
 
@@ -39,9 +39,9 @@ def init_sql_engine():
             }
         )
         
-        # Test the connection
+        # Test the connection (SQLAlchemy 2.0 compatible)
         with _engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
             
         logger.info(f"SQL engine initialized successfully for {environment.EXTERNAL_SQL_DB_HOST}")
         return _engine

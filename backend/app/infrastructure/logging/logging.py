@@ -1,6 +1,5 @@
 import logging
-import sys
-import os # Add os import
+import os  # Add os import
 import traceback  # Import the traceback module
 from logging.handlers import RotatingFileHandler
 
@@ -41,7 +40,7 @@ def setup_logging():
     # Keep the original format string for the base message
     formatter = TracebackSuppressingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
-    # Create and configure the file handler
+    # Create and configure the file handler (errors only)
     file_handler = RotatingFileHandler(
         log_file_path, # Use the new path
         maxBytes=512*1024,  # 0.5MB
@@ -50,16 +49,7 @@ def setup_logging():
     file_handler.setLevel(logging.ERROR)
     file_handler.setFormatter(formatter) # Use the custom formatter
     
-    # Create and configure the console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.ERROR)
-    console_handler.setFormatter(formatter) # Use the custom formatter
-    
-    # Configure the root logger
+    # Configure the root logger without touching existing handlers (uvicorn config)
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.ERROR)
-    # Clear existing handlers before adding new ones to prevent duplicates
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
+    # Keep whatever log level uvicorn sets; just add our file handler
     root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)

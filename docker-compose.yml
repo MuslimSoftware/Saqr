@@ -8,31 +8,33 @@ services:
     entrypoint: ["/entrypoint.sh"]
     environment:
       # Security
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me}
       # Redis
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_DB: ${REDIS_DB}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
       # DB
-      EXTERNAL_SQL_DB_HOST: ${EXTERNAL_SQL_DB_HOST}
-      EXTERNAL_SQL_DB_PORT: ${EXTERNAL_SQL_DB_PORT}
-      EXTERNAL_SQL_DB_USER: ${EXTERNAL_SQL_DB_USER}
-      EXTERNAL_SQL_DB_PASSWORD: ${EXTERNAL_SQL_DB_PASSWORD}
-      EXTERNAL_SQL_DB_NAME: ${EXTERNAL_SQL_DB_NAME}
-      EXTERNAL_SQL_DB_POOL_SIZE: ${EXTERNAL_SQL_DB_POOL_SIZE}
-      EXTERNAL_SQL_DB_MAX_OVERFLOW: ${EXTERNAL_SQL_DB_MAX_OVERFLOW}
-      EXTERNAL_SQL_DB_ECHO: ${EXTERNAL_SQL_DB_ECHO}
+      EXTERNAL_SQL_DB_HOST: ${EXTERNAL_SQL_DB_HOST:-sakila-mysql}
+      EXTERNAL_SQL_DB_PORT: ${EXTERNAL_SQL_DB_PORT:-3306}
+      EXTERNAL_SQL_DB_USER: ${EXTERNAL_SQL_DB_USER:-root}
+      EXTERNAL_SQL_DB_PASSWORD: ${EXTERNAL_SQL_DB_PASSWORD:-rootpass}
+      EXTERNAL_SQL_DB_NAME: ${EXTERNAL_SQL_DB_NAME:-sakila}
+      EXTERNAL_SQL_DB_POOL_SIZE: ${EXTERNAL_SQL_DB_POOL_SIZE:-5}
+      EXTERNAL_SQL_DB_MAX_OVERFLOW: ${EXTERNAL_SQL_DB_MAX_OVERFLOW:-10}
+      EXTERNAL_SQL_DB_ECHO: ${EXTERNAL_SQL_DB_ECHO:-false}
       # AI
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      AI_AGENT_MODEL: ${AI_AGENT_MODEL}
-      BROWSER_EXECUTION_MODEL: ${BROWSER_EXECUTION_MODEL}
-      BROWSER_PLANNER_MODEL: ${BROWSER_PLANNER_MODEL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_AGENT_MODEL: ${AI_AGENT_MODEL:-}
+      BROWSER_EXECUTION_MODEL: ${BROWSER_EXECUTION_MODEL:-}
+      BROWSER_PLANNER_MODEL: ${BROWSER_PLANNER_MODEL:-}
       # Google credentials (Coolify-friendly)
-      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON}
+      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp-key.json
     depends_on:
-      - redis
-      - sakila-mysql
+      redis:
+        condition: service_healthy
+      sakila-mysql:
+        condition: service_healthy
 
   frontend:
     build:
@@ -56,6 +58,11 @@ services:
     container_name: saqr-redis
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   sakila-mysql:
     build: ./scripts/sakila_db
