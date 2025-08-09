@@ -40,13 +40,13 @@ services:
     build:
       context: ./frontend
       args:
-        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-https://saqr-api.younesbenketira.com}
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-https://saqr-api.younesbenketira.com/api/v1}
         EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr}
         EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr}
         EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV:-production}
     container_name: saqr-frontend
     environment:
-      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-}
+      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-https://saqr-api.younesbenketira.com/api/v1}
       EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr}
       EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr}
       EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV:-production}
