@@ -206,23 +206,24 @@ class ReActCallback(BaseCallback):
                         total_seconds = elapsed_time.total_seconds()
                         
                         if total_seconds < 1:
-                            timing_info = f"Completed in {int(total_seconds * 1000)}ms"
+                            timing_info = f"Thought for {int(total_seconds * 1000)}ms"
                         elif total_seconds < 60:
-                            timing_info = f"Completed in {total_seconds:.1f}s"
+                            timing_info = f"Thought for {total_seconds:.1f}s"
                         else:
                             minutes = int(total_seconds // 60)
                             seconds = int(total_seconds % 60)
-                            timing_info = f"Completed in {minutes}m {seconds}s"
+                            timing_info = f"Thought for {minutes}m {seconds}s"
                     else:
-                        timing_info = "Thinking completed"
+                        timing_info = "Thought for unknown time"
                     
                     # Add final completion step to trajectory
                     self.reasoning_trajectory.append(timing_info)
                     
                     # Send final update to same reasoning message with complete status
+                    # Use the timing as the main content (what shows in the bubble header)
                     await self.chat_service.send_reasoning_message(
                         chat=self.chat,
-                        content="Thought process complete",
+                        content=timing_info,  # "Thought for 1.5s" instead of generic message
                         trajectory=self.reasoning_trajectory,
                         status="complete",
                         message_id=self.reasoning_message_id  # Use same ID for final update
