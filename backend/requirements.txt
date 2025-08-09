@@ -40,7 +40,7 @@ playwright==1.52.0
 browser-use==0.1.39
 
 # Utilities
-websockets==15.0.1
+websockets==13.1
 aiofiles==24.1.0
 
 # Testing
