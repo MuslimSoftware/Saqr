@@ -35,6 +35,7 @@ class ReActCallback(BaseCallback):
 
         self.reasoning_message_id = None
         self.reasoning_start_time = None
+        self.reasoning_trajectory = []  # Track meaningful reasoning steps
 
         self.operation_queue: List[PendingOperation] = []
         self.processing_queue = False
@@ -109,56 +110,26 @@ class ReActCallback(BaseCallback):
             
             async def create_reasoning_message():
                 try:
-                    reasoning_message = await self.chat_service.send_reasoning_message(
-                        chat=self.chat,
-                        content="",
-                        trajectory=[],
-                        status="thinking"
-                    )
-                    self.reasoning_message_id = reasoning_message.id
+                    # Generate a consistent ID for this reasoning session that will be used for all updates
+                    import uuid
+                    self.reasoning_message_id = str(uuid.uuid4())
                     self.reasoning_start_time = datetime.now()
+                    self.reasoning_trajectory = ["Starting to process your request"]
+                    
+                    # Create initial reasoning message with consistent ID
+                    await self.chat_service.send_reasoning_message(
+                        chat=self.chat,
+                        content="Thinking...",
+                        trajectory=self.reasoning_trajectory,
+                        status="thinking",
+                        message_id=self.reasoning_message_id  # Use consistent ID
+                    )
+                    print(f"✅ Started reasoning session {self.reasoning_message_id}")
                 except Exception as e:
+                    print(f"❌ Failed to create reasoning message: {e}")
                     self.reasoning_message_id = None
             
             self._queue_operation("create_reasoning_message", create_reasoning_message, "Creating reasoning message")
-            # TODO: Start thinking message
-
-    # def on_adapter_format_start(self, call_id, instance, inputs):
-    #     self._print_separator("ADAPTER FORMAT START", "📝")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"🔧 Instance: {self._format_data(instance)}")
-    #     print(f"📥 Inputs: {self._format_data(inputs)}")
-
-    # def on_adapter_format_end(self, call_id, outputs, exception=None):
-    #     self._print_separator("ADAPTER FORMAT END", "✅" if not exception else "❌")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"📤 Outputs: {self._format_data(outputs)}")
-    #     if exception:
-    #         print(f"💥 Exception: {self._format_data(exception)}")
-
-    # def on_lm_start(self, call_id, instance, inputs):
-    #     self._print_separator("LANGUAGE MODEL START", "🧠")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"🤖 Instance: {self._format_data(instance)}")
-    #     print(f"📥 Inputs: {self._format_data(inputs)}")
-
-    # def on_lm_end(self, call_id, outputs, exception=None):
-    #     self._print_separator("LANGUAGE MODEL END", "🎯" if not exception else "❌")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"📤 Outputs: {self._format_data(outputs)}")
-    #     if exception:
-    #         print(f"💥 Exception: {self._format_data(exception)}")
-
-    # def on_adapter_parse_start(self, call_id, instance, inputs):
-    #     self._print_separator("ADAPTER PARSE START", "🔍")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"🔧 Instance: {self._format_data(instance)}")
-    #     print(f"📥 Inputs: {self._format_data(inputs)}")
 
     def on_adapter_parse_end(self, call_id, outputs, exception=None):
         if exception:
@@ -168,14 +139,22 @@ class ReActCallback(BaseCallback):
             
             async def update_thought():
                 try:
-                    await self.chat_service.update_reasoning_message(
-                    chat=self.chat,
-                        message_id=self.reasoning_message_id,
-                        new_content=outputs.get('next_thought'),
-                        status="thinking"
+                    thought = outputs.get('next_thought')
+                    # Only add significant thoughts to trajectory, not every small update
+                    if thought and len(thought.strip()) > 20:  # Only add substantial thoughts
+                        self.reasoning_trajectory.append(thought)
+                    
+                    # Update the same reasoning message with current thought as content
+                    await self.chat_service.send_reasoning_message(
+                        chat=self.chat,
+                        content=thought if thought else "Thinking...",
+                        trajectory=self.reasoning_trajectory,
+                        status="thinking",
+                        message_id=self.reasoning_message_id  # Use same ID to update
                     )
+                    print(f"✅ Updated reasoning with thought: {thought[:50] if thought else 'None'}...")
                 except Exception as e:
-                    pass
+                    print(f"❌ Failed to update reasoning with thought: {e}")
             
             self._queue_operation("update_thought", update_thought, "Updating reasoning message with thought")
 
@@ -183,14 +162,22 @@ class ReActCallback(BaseCallback):
             
             async def update_reasoning():
                 try:
-                    await self.chat_service.update_reasoning_message(
+                    reasoning_content = outputs.get('reasoning')
+                    # Add reasoning to trajectory as a meaningful step
+                    if reasoning_content and reasoning_content not in self.reasoning_trajectory:
+                        self.reasoning_trajectory.append(reasoning_content)
+                    
+                    # Update the same reasoning message
+                    await self.chat_service.send_reasoning_message(
                         chat=self.chat,
-                        message_id=self.reasoning_message_id,
-                        new_content=outputs.get('reasoning'),
-                        status="thinking"
+                        content=reasoning_content if reasoning_content else "Processing...",
+                        trajectory=self.reasoning_trajectory,
+                        status="thinking",
+                        message_id=self.reasoning_message_id  # Use same ID to update
                     )
+                    print(f"✅ Updated reasoning: {reasoning_content[:50] if reasoning_content else 'None'}...")
                 except Exception as e:
-                    pass
+                    print(f"❌ Failed to update reasoning: {e}")
             
             self._queue_operation("update_reasoning", update_reasoning, "Updating reasoning message with reasoning")
 
@@ -219,25 +206,30 @@ class ReActCallback(BaseCallback):
                         total_seconds = elapsed_time.total_seconds()
                         
                         if total_seconds < 1:
-                            content = f"Thought for {int(total_seconds * 1000)}ms"
+                            timing_info = f"Completed in {int(total_seconds * 1000)}ms"
                         elif total_seconds < 60:
-                            content = f"Thought for {total_seconds:.1f}s"
+                            timing_info = f"Completed in {total_seconds:.1f}s"
                         else:
                             minutes = int(total_seconds // 60)
                             seconds = int(total_seconds % 60)
-                            content = f"Thought for {minutes}m {seconds}s"
+                            timing_info = f"Completed in {minutes}m {seconds}s"
                     else:
-                        content = "Thought process completed"
+                        timing_info = "Thinking completed"
                     
-                    await self.chat_service.update_reasoning_message(
+                    # Add final completion step to trajectory
+                    self.reasoning_trajectory.append(timing_info)
+                    
+                    # Send final update to same reasoning message with complete status
+                    await self.chat_service.send_reasoning_message(
                         chat=self.chat,
-                        message_id=self.reasoning_message_id,
-                        new_content=content,
-                        status="complete"
+                        content="Thought process complete",
+                        trajectory=self.reasoning_trajectory,
+                        status="complete",
+                        message_id=self.reasoning_message_id  # Use same ID for final update
                     )
-                    # print(f"✅ SUCCESS: Reasoning message completed")
+                    print(f"✅ Reasoning session completed: {timing_info}")
                 except Exception as e:
-                    pass
+                    print(f"❌ Failed to complete reasoning: {e}")
             
             self._queue_operation("complete_reasoning", complete_reasoning, "Completing reasoning message")
 
@@ -259,29 +251,18 @@ class ReActCallback(BaseCallback):
         
         async def create_or_add_tool_event():
             try:
-                if tool_name in self.tool_events and self.tool_events[tool_name]:
-                    # Add to existing tool event trajectory
-                    tool_event = await self.chat_service.add_tool_call_to_event(
-                        chat=self.chat,
-                        tool_name=tool_name,
-                        input_payload=input_payload
-                    )
-                    if tool_event:
-                        pass
-                    else:
-                        raise Exception(f"Could not add to existing trajectory for {tool_name}")
-                else:
-                    # Create new tool event
-                    await self.chat_service.send_tool_message(
-                        chat=self.chat,
-                        tool_name=tool_name,
-                        input_payload=input_payload
-                    )
-                    # For Redis-based system, we'll use tool_name as the event ID
-                    import uuid
-                    self.tool_events[tool_name] = str(uuid.uuid4())
+                # Always create new tool event using the existing send_tool_message method
+                await self.chat_service.send_tool_message(
+                    chat=self.chat,
+                    tool_name=tool_name,
+                    input_payload=input_payload
+                )
+                # Generate unique event ID for tracking
+                import uuid
+                self.tool_events[tool_name] = str(uuid.uuid4())
+                print(f"✅ Created tool message for {tool_name}")
             except Exception as e:
-                print(f"❌ FAILED: Could not create/update tool message - {str(e)}")
+                print(f"❌ FAILED: Could not create tool message for {tool_name} - {str(e)}")
                 # Remove failed entry
                 self.tool_events.pop(tool_name, None)
         

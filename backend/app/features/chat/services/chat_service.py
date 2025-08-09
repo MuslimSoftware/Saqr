@@ -127,7 +127,7 @@ class ChatService:
         """Helper to broadcast an agent error message using Redis and WebSocket."""
         await self._broadcast_message(chat, content, "agent", "error")
 
-    async def send_reasoning_message(self, chat: Chat, content: str, trajectory: List[str], status: str = "thinking") -> None:
+    async def send_reasoning_message(self, chat: Chat, content: str, trajectory: List[str], status: str = "thinking", message_id: str = None) -> None:
         """Helper to broadcast an agent reasoning message using Redis and WebSocket."""
         # Frontend expects specific status values: 'thinking' | 'complete'
         frontend_status = "complete" if status == "complete" else "thinking"
@@ -136,7 +136,7 @@ class ChatService:
             "trajectory": trajectory,  # Frontend expects trajectory first
             "status": frontend_status
         }
-        await self._broadcast_message(chat, content, "agent", "reasoning", reasoning_payload)
+        await self._broadcast_message(chat, content, "agent", "reasoning", reasoning_payload, message_id)
 
     async def send_tool_message(self, chat: Chat, tool_name: str, input_payload: Dict[str, Any]) -> None:
         """Helper to broadcast a tool message using Redis and WebSocket."""
@@ -188,16 +188,19 @@ class ChatService:
         content = f"Tool {get_tool_display_name(tool_name)} {status}"
         await self._broadcast_message(chat, content, "agent", "tool", tool_payload)
 
-    async def _broadcast_message(self, chat: Chat, content: str, author: str, msg_type: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    async def _broadcast_message(self, chat: Chat, content: str, author: str, msg_type: str, payload: Optional[Dict[str, Any]] = None, message_id: str = None) -> None:
         """Internal helper to broadcast messages via WebSocket and store in Redis."""
         try:
             from datetime import datetime, timezone
             import uuid
             
+            # Use provided message_id for reasoning updates, generate new for others
+            msg_id = message_id if message_id else str(uuid.uuid4())
+            
             # Create message data for WebSocket broadcast
             message_data = {
                 "type": msg_type,
-                "_id": str(uuid.uuid4()),
+                "_id": msg_id,
                 "chat_id": str(chat.id),
                 "author": author,
                 "content": content,
