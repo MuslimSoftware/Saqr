@@ -7,7 +7,7 @@ from beanie import PydanticObjectId
 from app.features.common.schemas.common_schemas import BaseResponse, PaginatedResponseData
 
 # --- Type Alias for Message Types ---
-MessageType = Literal['text', 'error', 'tool_use']
+MessageType = Literal['text', 'error', 'tool_use', 'tool_result', 'reasoning', 'screenshot', 'message']
 
 # --- Core Data Models --- 
 

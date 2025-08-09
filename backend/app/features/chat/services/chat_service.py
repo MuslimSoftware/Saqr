@@ -31,7 +31,7 @@ def get_tool_display_name(tool_name: str) -> str:
     return tool_name_mapping.get(tool_name, tool_name)
 
 class ChatService:
-    """DEPRECATED: Service layer for chat operations - now uses Redis instead of MongoDB."""
+    """Service layer for chat operations - uses Redis and WebSocket for real-time messaging."""
     def __init__(
         self,
         chat_repository: 'ChatRepositoryDep',
@@ -39,6 +39,11 @@ class ChatService:
     ):
         self.chat_repository = chat_repository
         self.websocket_repository = websocket_repository
+        self.current_session_token = None  # Will be set by the agent service context
+
+    def set_session_context(self, session_token: str):
+        """Set the session token for Redis operations."""
+        self.current_session_token = session_token
 
     async def create_new_chat(self, chat_data: ChatCreate, owner_id: str) -> Chat:
         """DEPRECATED: Service layer function to create a new chat - use RedisChatService instead."""
@@ -124,31 +129,64 @@ class ChatService:
 
     async def send_reasoning_message(self, chat: Chat, content: str, trajectory: List[str], status: str = "thinking") -> None:
         """Helper to broadcast an agent reasoning message using Redis and WebSocket."""
+        # Frontend expects specific status values: 'thinking' | 'complete'
+        frontend_status = "complete" if status == "complete" else "thinking"
+        
         reasoning_payload = {
-            "content": content,
-            "trajectory": trajectory,
-            "status": status
+            "trajectory": trajectory,  # Frontend expects trajectory first
+            "status": frontend_status
         }
         await self._broadcast_message(chat, content, "agent", "reasoning", reasoning_payload)
 
     async def send_tool_message(self, chat: Chat, tool_name: str, input_payload: Dict[str, Any]) -> None:
         """Helper to broadcast a tool message using Redis and WebSocket."""
-        tool_payload = {
+        # Create frontend-compatible tool payload
+        from datetime import datetime, timezone
+        current_time = datetime.now(timezone.utc).isoformat()
+        
+        tool_execution = {
             "tool_name": get_tool_display_name(tool_name),
             "input_payload": input_payload,
-            "status": "pending"
+            "output_payload": None,
+            "error": None,
+            "status": "started",
+            "started_at": current_time,
+            "completed_at": None
         }
-        await self._broadcast_message(chat, f"Using tool: {get_tool_display_name(tool_name)}", "agent", "tool_use", tool_payload)
+        
+        tool_payload = {
+            "status": "started",
+            "tool_calls": [tool_execution]
+        }
+        
+        await self._broadcast_message(chat, f"Using tool: {get_tool_display_name(tool_name)}", "agent", "tool", tool_payload)
 
     async def send_tool_update(self, chat: Chat, tool_name: str, status: str, output_payload: Optional[Dict[str, Any]] = None) -> None:
         """Helper to broadcast tool updates using Redis and WebSocket."""
-        tool_payload = {
+        # Create frontend-compatible tool payload  
+        from datetime import datetime, timezone
+        current_time = datetime.now(timezone.utc).isoformat()
+        
+        # Map backend status to frontend status
+        frontend_status = "completed" if status == "completed" else "error" if status == "error" else "in_progress"
+        
+        tool_execution = {
             "tool_name": get_tool_display_name(tool_name),
-            "status": status,
-            "output_payload": output_payload
+            "input_payload": {},  # We don't have input here in update
+            "output_payload": output_payload,
+            "error": None if status == "completed" else "Tool execution failed",
+            "status": frontend_status,
+            "started_at": current_time,  # We don't track this, use current time
+            "completed_at": current_time if status in ["completed", "error"] else None
         }
+        
+        tool_payload = {
+            "status": frontend_status,
+            "tool_calls": [tool_execution]
+        }
+        
         content = f"Tool {get_tool_display_name(tool_name)} {status}"
-        await self._broadcast_message(chat, content, "agent", "tool_result", tool_payload)
+        await self._broadcast_message(chat, content, "agent", "tool", tool_payload)
 
     async def _broadcast_message(self, chat: Chat, content: str, author: str, msg_type: str, payload: Optional[Dict[str, Any]] = None) -> None:
         """Internal helper to broadcast messages via WebSocket and store in Redis."""
@@ -177,17 +215,31 @@ class ChatService:
             # For agent messages, also store in Redis for chat history
             if author == "agent" and msg_type in ["message", "error"]:
                 try:
-                    # Try to store in Redis using the Redis chat service
-                    from app.config.dependencies.services import get_redis_chat_service
-                    redis_service = get_redis_chat_service()
-                    
-                    # We need the session token to store in Redis, but we don't have it here
-                    # This is a limitation of the current architecture
-                    # For now, we'll just broadcast via WebSocket
-                    print(f"[DEBUG] Note: Agent message not stored in Redis (no session context)")
+                    if self.current_session_token:
+                        # Store in Redis using the Redis chat service
+                        from app.config.dependencies.services import get_redis_chat_service
+                        redis_service = get_redis_chat_service()
+                        
+                        # Convert ObjectId back to UUID for Redis operations
+                        chat_id_str = str(chat.id)
+                        redis_uuid = await redis_service._objectid_to_uuid(chat_id_str, self.current_session_token)
+                        
+                        # Store the agent message in Redis
+                        await redis_service.add_message(
+                            redis_uuid, 
+                            self.current_session_token, 
+                            content, 
+                            "agent", 
+                            payload  # Store payload as metadata
+                        )
+                        print(f"[DEBUG] ✅ Agent message stored in Redis for chat history")
+                        
+                    else:
+                        print(f"[DEBUG] ⚠️  Agent message not stored in Redis (no session token)")
                     
                 except Exception as e:
-                    print(f"[DEBUG] Error storing agent message in Redis: {e}")
+                    print(f"[DEBUG] ❌ Error storing agent message in Redis: {e}")
+                    # Don't fail the broadcast if storage fails
                     
         except Exception as e:
             print(f"Error broadcasting message: {e}")
