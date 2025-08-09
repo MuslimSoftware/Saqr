@@ -1,17 +1,36 @@
-FROM node:20
+# syntax=docker/dockerfile:1.7
+FROM node:20-alpine
 
-# Create app directory
 WORKDIR /app
 
-# Install app dependencies
+# Install dependencies first for better caching
 COPY package*.json ./
-RUN npm install --legacy-peer-deps --silent
+RUN npm ci --legacy-peer-deps --silent
 
-# Copy the rest of the application source
+# Copy the rest of the app
 COPY . .
 
-# Expose the ports used by Expo for the web dev server and devtools
-EXPOSE 19006 19002
+# Build-time configuration
+ARG FE_API_URL
+ARG BRAND_NAME
+ARG BRAND_SLUG
+ARG APP_ENV=production
 
-# Start Expo in web mode
-CMD ["npm", "run", "web"] 
+ENV FE_API_URL=${FE_API_URL} \
+    BRAND_NAME=${BRAND_NAME} \
+    BRAND_SLUG=${BRAND_SLUG} \
+    APP_ENV=${APP_ENV} \
+    CI=1
+
+# Export static web build
+RUN npx --yes expo export --platform web
+
+# Install a simple static file server
+RUN npm install -g serve
+
+EXPOSE 3000
+
+# Serve the static files
+CMD ["serve", "-s", "dist", "-l", "3000"]
+
+
