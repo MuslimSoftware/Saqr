@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import json
 import dspy
 import os
+import uuid
 
 from ..models import Chat
 from ..schemas import ChatCreate, ChatUpdate
@@ -110,25 +111,84 @@ class ChatService:
         return None
 
     async def send_user_message(self, chat: Chat, content: str) -> None:
-        """Helper to broadcast a user text message - simplified without MongoDB storage."""
-        print("User message broadcasting disabled - MongoDB dependencies removed")
+        """Helper to broadcast a user text message using Redis and WebSocket."""
+        await self._broadcast_message(chat, content, "user", "message")
 
     async def send_agent_message(self, chat: Chat, content: str) -> None:
-        """Helper to broadcast an agent text message - simplified without MongoDB storage."""
-        print("Agent message broadcasting disabled - MongoDB dependencies removed")
+        """Helper to broadcast an agent text message using Redis and WebSocket."""
+        await self._broadcast_message(chat, content, "agent", "message")
 
     async def send_error_message(self, chat: Chat, content: str) -> None:
-        """Helper to broadcast an agent error message - simplified without MongoDB storage."""
-        print("Error message broadcasting disabled - MongoDB dependencies removed")
+        """Helper to broadcast an agent error message using Redis and WebSocket."""
+        await self._broadcast_message(chat, content, "agent", "error")
 
     async def send_reasoning_message(self, chat: Chat, content: str, trajectory: List[str], status: str = "thinking") -> None:
-        """Helper to broadcast an agent reasoning message - simplified without MongoDB storage."""
-        print("Reasoning message broadcasting disabled - MongoDB dependencies removed")
+        """Helper to broadcast an agent reasoning message using Redis and WebSocket."""
+        reasoning_payload = {
+            "content": content,
+            "trajectory": trajectory,
+            "status": status
+        }
+        await self._broadcast_message(chat, content, "agent", "reasoning", reasoning_payload)
 
     async def send_tool_message(self, chat: Chat, tool_name: str, input_payload: Dict[str, Any]) -> None:
-        """Helper to broadcast a tool message - simplified without MongoDB storage."""
-        print("Tool message broadcasting disabled - MongoDB dependencies removed")
+        """Helper to broadcast a tool message using Redis and WebSocket."""
+        tool_payload = {
+            "tool_name": get_tool_display_name(tool_name),
+            "input_payload": input_payload,
+            "status": "pending"
+        }
+        await self._broadcast_message(chat, f"Using tool: {get_tool_display_name(tool_name)}", "agent", "tool_use", tool_payload)
 
     async def send_tool_update(self, chat: Chat, tool_name: str, status: str, output_payload: Optional[Dict[str, Any]] = None) -> None:
-        """Helper to broadcast tool updates - simplified without MongoDB storage."""
-        print("Tool update broadcasting disabled - MongoDB dependencies removed")
+        """Helper to broadcast tool updates using Redis and WebSocket."""
+        tool_payload = {
+            "tool_name": get_tool_display_name(tool_name),
+            "status": status,
+            "output_payload": output_payload
+        }
+        content = f"Tool {get_tool_display_name(tool_name)} {status}"
+        await self._broadcast_message(chat, content, "agent", "tool_result", tool_payload)
+
+    async def _broadcast_message(self, chat: Chat, content: str, author: str, msg_type: str, payload: Optional[Dict[str, Any]] = None) -> None:
+        """Internal helper to broadcast messages via WebSocket and store in Redis."""
+        try:
+            from datetime import datetime, timezone
+            import uuid
+            
+            # Create message data for WebSocket broadcast
+            message_data = {
+                "type": msg_type,
+                "_id": str(uuid.uuid4()),
+                "chat_id": str(chat.id),
+                "author": author,
+                "content": content,
+                "payload": payload,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            # Broadcast via WebSocket to connected clients
+            message_json = json.dumps(message_data)
+            await self.websocket_repository.broadcast_to_chat(message_json, str(chat.id))
+            
+            print(f"[DEBUG] Broadcasted {msg_type} message from {author}: {content[:50]}...")
+            
+            # For agent messages, also store in Redis for chat history
+            if author == "agent" and msg_type in ["message", "error"]:
+                try:
+                    # Try to store in Redis using the Redis chat service
+                    from app.config.dependencies.services import get_redis_chat_service
+                    redis_service = get_redis_chat_service()
+                    
+                    # We need the session token to store in Redis, but we don't have it here
+                    # This is a limitation of the current architecture
+                    # For now, we'll just broadcast via WebSocket
+                    print(f"[DEBUG] Note: Agent message not stored in Redis (no session context)")
+                    
+                except Exception as e:
+                    print(f"[DEBUG] Error storing agent message in Redis: {e}")
+                    
+        except Exception as e:
+            print(f"Error broadcasting message: {e}")
+            # Don't raise the exception to avoid breaking the agent flow

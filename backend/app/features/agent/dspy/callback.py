@@ -12,7 +12,13 @@ if TYPE_CHECKING:
 # Types previously from chat_event_model - now defined locally
 from typing import Literal
 ChatEventType = Literal['message', 'reasoning', 'tool_use', 'tool_result']
-ToolStatus = Literal['pending', 'success', 'error']
+ToolStatus = Literal['pending', 'completed', 'error']
+
+# Create constants for easier access
+class ToolStatus:
+    PENDING = 'pending'
+    COMPLETED = 'completed' 
+    ERROR = 'error'
 
 @dataclass
 class PendingOperation:
@@ -266,12 +272,14 @@ class ReActCallback(BaseCallback):
                         raise Exception(f"Could not add to existing trajectory for {tool_name}")
                 else:
                     # Create new tool event
-                    tool_event = await self.chat_service.send_tool_message(
+                    await self.chat_service.send_tool_message(
                         chat=self.chat,
                         tool_name=tool_name,
                         input_payload=input_payload
                     )
-                    self.tool_events[tool_name] = str(tool_event.id)
+                    # For Redis-based system, we'll use tool_name as the event ID
+                    import uuid
+                    self.tool_events[tool_name] = str(uuid.uuid4())
             except Exception as e:
                 print(f"❌ FAILED: Could not create/update tool message - {str(e)}")
                 # Remove failed entry
@@ -314,19 +322,17 @@ class ReActCallback(BaseCallback):
                     current_event_id = self.tool_events.get(tool_name)
                     retry_count += 1
                 
-                if current_event_id:
-                    try:
-                        from beanie import PydanticObjectId
-                        await self.chat_service.update_tool_event_by_id(
-                            event_id=PydanticObjectId(current_event_id),
-                            tool_name=tool_name,
-                            status=status,
-                            output_payload=output_payload
-                        )
-                    except Exception as e:
-                        pass
-                else:
-                    pass
+                # Use the new Redis/WebSocket broadcasting method
+                try:
+                    await self.chat_service.send_tool_update(
+                        chat=self.chat,
+                        tool_name=tool_name,
+                        status="completed" if status == ToolStatus.COMPLETED else "error",
+                        output_payload=output_payload
+                    )
+                    print(f"   ✅ Tool update sent for {tool_name}")
+                except Exception as e:
+                    print(f"   ❌ Error sending tool update for {tool_name}: {e}")
             
             self._queue_operation("update_tool_event", update_tool_event, f"Updating tool message for {tool_name}")
         
