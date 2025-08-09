@@ -85,6 +85,7 @@ async def prompt(
     user_input: str, 
     chat_service: Optional["ChatServiceDep"] = None, 
     chat: Optional["Chat"] = None,
+    session_token: str = None,
     max_history_messages: int = 10,
     summary_threshold: int = 20
 ):
@@ -113,6 +114,7 @@ async def prompt(
     memory_manager = MemoryManager(
         chat_service=chat_service,
         chat=chat,
+        session_token=session_token,
         max_recent_messages=max_history_messages,
         summary_threshold=summary_threshold
     )

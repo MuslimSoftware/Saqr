@@ -17,11 +17,13 @@ class MemoryManager:
         self,
         chat_service: Optional["ChatServiceDep"] = None,
         chat: Optional["Chat"] = None,
+        session_token: str = None,
         max_recent_messages: int = 10,
         summary_threshold: int = 20
     ):
         self.chat_service = chat_service
         self.chat = chat
+        self.session_token = session_token
         self.max_recent_messages = max_recent_messages
         self.summary_threshold = summary_threshold
         
@@ -115,21 +117,22 @@ class MemoryManager:
             return []
             
         try:
+            # Check if we have session token
+            if not self.session_token:
+                print("MemoryManager: No session token provided, cannot fetch events")
+                return []
+                
             # Try to get Redis service and fetch messages from Redis
             from app.config.dependencies.services import get_redis_chat_service
             redis_service = get_redis_chat_service()
             
-            # We need to determine if this is a demo session or regular user
             chat_id_str = str(self.chat.id)
-            print(f"MemoryManager: Fetching events for chat ID: {chat_id_str}")
-            
-            # For now, assume demo session pattern (this may need adjustment)
-            session_token = f"demo-session-{chat_id_str}"  # This might need to be passed differently
+            print(f"MemoryManager: Fetching events for chat ID: {chat_id_str} with session token: {self.session_token}")
             
             # Convert ObjectId back to UUID for Redis operations
             try:
-                redis_uuid = await redis_service._objectid_to_uuid(chat_id_str, session_token)
-                messages = await redis_service.get_messages_for_chat(redis_uuid, session_token, limit, 0)
+                redis_uuid = await redis_service._objectid_to_uuid(chat_id_str, self.session_token)
+                messages = await redis_service.get_messages_for_chat(redis_uuid, self.session_token, limit, 0)
                 
                 # Convert Redis messages to event format expected by the agent
                 events = []

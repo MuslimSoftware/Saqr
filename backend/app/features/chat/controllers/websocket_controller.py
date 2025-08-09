@@ -130,6 +130,7 @@ class WebSocketController:
             await self.agent_service.process_user_message(
                 chat=temp_chat,
                 user_content=user_content,
+                session_token=session_token
             )
             
             print(f"[DEBUG] Agent service processing completed")

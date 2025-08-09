@@ -24,12 +24,13 @@ class AgentService:
     async def process_user_message(
         self,
         chat: "Chat",
-        user_content: str
+        user_content: str,
+        session_token: str = None
     ) -> None:
         logger.info(f"AgentService: Processing user message for chat {chat.id}")
 
         try:
-            await prompt(user_content, chat_service=self.chat_service, chat=chat)
+            await prompt(user_content, chat_service=self.chat_service, chat=chat, session_token=session_token)
         except Exception as e:
             logger.error(f"AgentService: Error processing user message: {e}")
             print(f"AgentService: Error processing user message: {e}")
