@@ -117,7 +117,7 @@ class ReActCallback(BaseCallback):
                     import uuid
                     self.reasoning_message_id = str(uuid.uuid4())
                     self.reasoning_start_time = datetime.now()
-                    self.reasoning_trajectory = ["Starting to process your request"]
+                    self.reasoning_trajectory = []  # Start with empty trajectory
                     
                     # Create initial reasoning message with consistent ID
                     await self.chat_service.send_reasoning_message(
@@ -221,8 +221,7 @@ class ReActCallback(BaseCallback):
                     else:
                         timing_info = "Thought for unknown time"
                     
-                    # Add final completion step to trajectory
-                    self.reasoning_trajectory.append(timing_info)
+                    # Don't add timing info to trajectory - it will show in the main content
                     
                     # Send final update to same reasoning message with complete status
                     # Use the timing as the main content (what shows in the bubble header)

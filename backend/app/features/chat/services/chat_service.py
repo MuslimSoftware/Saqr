@@ -159,7 +159,7 @@ class ChatService:
             "tool_calls": [tool_execution]
         }
         
-        await self._broadcast_message(chat, f"Using tool: {get_tool_display_name(tool_name)}", "agent", "tool", tool_payload, message_id)
+        await self._broadcast_message(chat, get_tool_display_name(tool_name), "agent", "tool", tool_payload, message_id)
 
     async def send_tool_update(self, chat: Chat, tool_name: str, status: str, output_payload: Optional[Dict[str, Any]] = None, input_payload: Dict[str, Any] = None, message_id: str = None) -> None:
         """Helper to broadcast tool updates using Redis and WebSocket."""
@@ -185,7 +185,7 @@ class ChatService:
             "tool_calls": [tool_execution]
         }
         
-        content = f"Tool {get_tool_display_name(tool_name)} {status}"
+        content = get_tool_display_name(tool_name)
         await self._broadcast_message(chat, content, "agent", "tool", tool_payload, message_id)
 
     async def _broadcast_message(self, chat: Chat, content: str, author: str, msg_type: str, payload: Optional[Dict[str, Any]] = None, message_id: str = None) -> None:
