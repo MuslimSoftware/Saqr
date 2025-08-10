@@ -169,7 +169,7 @@ class ReActCallback(BaseCallback):
             async def update_reasoning():
                 try:
                     reasoning_content = outputs.get('reasoning')
-                    # DO NOT add reasoning to trajectory - only thoughts should be in trajectory
+                    self.reasoning_trajectory.append(reasoning_content)                    
                     
                     # Update the same reasoning message (but don't add to trajectory)
                     await self.chat_service.send_reasoning_message(
