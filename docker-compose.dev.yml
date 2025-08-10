@@ -4,11 +4,13 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: saqr-backend
+    container_name: saqr-backend-dev
     entrypoint: ["/entrypoint.sh"]
+    ports:
+      - "8000:8000"  # Expose backend on localhost:8000
     environment:
       # Security
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-dev}
       # Redis
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
@@ -21,7 +23,7 @@ services:
       EXTERNAL_SQL_DB_NAME: ${EXTERNAL_SQL_DB_NAME:-sakila}
       EXTERNAL_SQL_DB_POOL_SIZE: ${EXTERNAL_SQL_DB_POOL_SIZE:-5}
       EXTERNAL_SQL_DB_MAX_OVERFLOW: ${EXTERNAL_SQL_DB_MAX_OVERFLOW:-10}
-      EXTERNAL_SQL_DB_ECHO: ${EXTERNAL_SQL_DB_ECHO:-false}
+      EXTERNAL_SQL_DB_ECHO: ${EXTERNAL_SQL_DB_ECHO:-true}  # Enable SQL logging in dev
       # AI
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       AI_AGENT_MODEL: ${AI_AGENT_MODEL:-}
@@ -40,24 +42,28 @@ services:
     build:
       context: ./frontend
       args:
-        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-https://saqr-api.younesbenketira.com/api/v1}
-        EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr}
-        EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr}
-        EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV:-production}
-    container_name: saqr-frontend
+        EXPO_PUBLIC_API_URL: http://localhost:8000/api/v1  # Point to local backend
+        EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr Dev}
+        EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr-dev}
+        EXPO_PUBLIC_APP_ENV: development  # Development environment
+    container_name: saqr-frontend-dev
+    ports:
+      - "3000:3000"  # Expose frontend on localhost:3000
     environment:
-      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-https://saqr-api.younesbenketira.com/api/v1}
-      EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr}
-      EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr}
-      EXPO_PUBLIC_APP_ENV: ${EXPO_PUBLIC_APP_ENV:-production}
+      EXPO_PUBLIC_API_URL: http://localhost:8000/api/v1  # Point to local backend
+      EXPO_PUBLIC_BRAND_NAME: ${EXPO_PUBLIC_BRAND_NAME:-Saqr Dev}
+      EXPO_PUBLIC_BRAND_SLUG: ${EXPO_PUBLIC_BRAND_SLUG:-saqr-dev}
+      EXPO_PUBLIC_APP_ENV: development  # Development environment
     depends_on:
       - backend
 
   redis:
     image: redis:7-alpine
-    container_name: saqr-redis
+    container_name: saqr-redis-dev
+    ports:
+      - "6379:6379"  # Expose Redis for debugging if needed
     volumes:
-      - redis_data:/data
+      - redis_data_dev:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -67,12 +73,14 @@ services:
   sakila-mysql:
     build: ./scripts/sakila_db
     platform: linux/amd64
-    container_name: saqr-sakila-mysql
+    container_name: saqr-sakila-mysql-dev
+    ports:
+      - "3306:3306"  # Expose MySQL for debugging if needed
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       MYSQL_DATABASE: sakila
     volumes:
-      - sakila_mysql_data:/var/lib/mysql
+      - sakila_mysql_data_dev:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p\"$${MYSQL_ROOT_PASSWORD}\""]
       interval: 10s
@@ -80,5 +88,5 @@ services:
       retries: 10
 
 volumes:
-  redis_data:
-  sakila_mysql_data:
+  redis_data_dev:
+  sakila_mysql_data_dev:

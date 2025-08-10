@@ -113,11 +113,11 @@ class WebSocketController:
             # Create a temporary Chat object for the agent service to use
             print(f"[DEBUG] Creating temporary Chat object for agent processing")
             from app.features.chat.models.chat_model import Chat
-            from bson import ObjectId
+            from beanie import PydanticObjectId
             
             # Create a temporary MongoDB-style chat object
             temp_chat = Chat(
-                id=ObjectId(str(self.chat_id_obj)),  # Use the ObjectId
+                id=PydanticObjectId(str(self.chat_id_obj)),  # Use PydanticObjectId
                 owner_id=self.current_user.id,
                 name=redis_chat.get("name", "Demo Chat"),
                 created_at=datetime.fromisoformat(redis_chat["created_at"]),
@@ -130,6 +130,7 @@ class WebSocketController:
             await self.agent_service.process_user_message(
                 chat=temp_chat,
                 user_content=user_content,
+                session_token=session_token
             )
             
             print(f"[DEBUG] Agent service processing completed")

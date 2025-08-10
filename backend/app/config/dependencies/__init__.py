@@ -13,7 +13,7 @@ from app.features.chat.services.redis_chat_service import RedisChatService
 from app.features.agent.services import AgentService
 # Repositories
 from app.features.user.repositories import UserRepository
-from app.features.chat.repositories import ChatRepository, WebSocketRepository, ScreenshotRepository
+from app.features.chat.repositories import ChatRepository, WebSocketRepository
 
 # --- Import Provider Functions --- #
 from .common import get_redis
@@ -21,7 +21,6 @@ from .repositories import (
     get_user_repository,
     get_chat_repository,
     get_websocket_repository,
-    get_screenshot_repository,
 )
 from .services import (
     get_user_service,
@@ -48,7 +47,6 @@ AgentServiceDep = Annotated[AgentService, Depends(get_agent_service)]
 UserRepositoryDep = Annotated[UserRepository, Depends(get_user_repository)]
 ChatRepositoryDep = Annotated[ChatRepository, Depends(get_chat_repository)]
 WebSocketRepositoryDep = Annotated[WebSocketRepository, Depends(get_websocket_repository)]
-ScreenshotRepositoryDep = Annotated[ScreenshotRepository, Depends(get_screenshot_repository)]
 
 # User Objects
 UserDep = Annotated[User, Depends(get_current_user)]
@@ -77,7 +75,6 @@ __all__ = [
     "UserRepositoryDep",
     "ChatRepositoryDep",
     "WebSocketRepositoryDep",
-    "ScreenshotRepositoryDep",
 
     # Annotated User Types (These ARE needed externally)
     "UserDep",

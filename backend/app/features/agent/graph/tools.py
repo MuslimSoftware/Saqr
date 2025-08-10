@@ -10,7 +10,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.tools import Tool
 from sqlalchemy import text
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from app.infrastructure.database import get_sql_engine, get_external_mongo_db
+from app.infrastructure.database import get_sql_engine
 from app.config.environment import environment
 
 try:
@@ -172,88 +172,7 @@ def query_sql_db(query: str) -> Any:
             except Exception:
                 pass
 
-# Simplified Mongo query tool (synchronous) with timeout
-def query_mongo_db(filter: Dict[str, Any], sort: Dict[str, Any] = None) -> Any:
-    """
-    Query a MongoDB database containing application logs.
-    This is useful for debugging and understanding application behavior.
-    Context is the main key to filter the logs if not specified otherwise.
-    Don't retry this tool with the same filter if it times out.
-
-    Schema:
-    {
-        "_id": { "$oid": "..." },
-        "request": "...",
-        "response": "...",
-        "status": 200,
-        "context": "<context_name>",
-        "level": "info",
-        "source": "POST http://endpoint",
-        "transaction_id": "...",
-        "date_added": { "$date": "..." },
-        "user_agent": "...",
-        "pid": "..."
-    }
-
-    Args:
-        filter: The filter to apply to the query (e.g., {'context': 'some_flow'})
-        sort: The sort to apply to the query (optional)
-
-    Returns:
-        A list of context strings
-    """
-    timeout_seconds = 10
-    limit = 200
-    # Accept filter as JSON string or Python literal dict
-    if isinstance(filter, str):
-        try:
-            filter = json.loads(filter)
-        except Exception as e_json:
-            try:
-                filter = ast.literal_eval(filter)
-            except Exception as e_ast:
-                return {"error": f"Invalid filter format, JSON error: {e_json}; Literal eval error: {e_ast}"}
-    if not isinstance(filter, dict):
-        return {"error": "Filter must be a dict"}
-    
-    # Validate filter is not empty
-    if not filter or len(filter) == 0:
-        return {"error": "Filter cannot be empty. Please provide at least one filter criterion (e.g., {'context': 'booking_flow'} or {'booking_id': 123456})"}
-    
-    # Validate limit is greater than 0
-    if limit <= 0:
-        return {"error": "Limit must be greater than 0"}
-    
-    def _execute_query():
-        """Inner function to execute the MongoDB query"""
-        db = get_external_mongo_db()
-        cursor = db["debug_logs"].find(filter)
-        
-        # Apply sort if provided
-        if sort:
-            cursor = cursor.sort(list(sort.items()))
-        
-        # Apply limit and timeout
-        cursor = cursor.limit(limit).max_time_ms(timeout_seconds * 1000)
-        docs = list(cursor)
-        return [doc["context"] for doc in docs]
-    
-    try:
-        print(f"Querying MongoDB database with filter: {filter} (timeout: {timeout_seconds}s)")
-        
-        # Use ThreadPoolExecutor for Python-level timeout as backup
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_execute_query)
-            try:
-                context_list = future.result(timeout=timeout_seconds + 2)  # Add 2s buffer
-                return context_list
-            except FuturesTimeoutError:
-                print(f"MongoDB query timed out after {timeout_seconds} seconds")
-                return {"error": f"Query timed out after {timeout_seconds} seconds"}
-                
-    except Exception as e:
-        print(f"Error querying MongoDB database: {e}")
-        return {"error": str(e)}
+## Mongo query tool removed in production build
 
 async def search_web(query: str) -> Any:
     """

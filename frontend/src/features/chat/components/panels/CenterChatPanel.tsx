@@ -4,6 +4,7 @@ import {
   View,
 } from 'react-native';
 import { FgView } from '@/features/shared/components/layout';
+import { useResponsiveLayout } from '@/features/shared/hooks';
 import { ChatHeader } from '../ChatHeader';
 import { CombinedMessageList } from '../CombinedMessageList';
 import { ChatInput } from '../ChatInput';
@@ -22,16 +23,19 @@ export const CenterChatPanel: React.FC<CenterChatPanelProps> = ({
   onSelectToolInvocation,
 }) => {
   const { selectedChatId } = useChat();
+  const { isMobile } = useResponsiveLayout();
 
   return (
     <View style={styles.centerPanelWrapper}>
-      <FgView style={styles.centerPanel}>
+      <FgView style={[styles.centerPanel, isMobile && styles.mobileCenterPanel]}>
         {selectedChatId ? (
           <>
-            <ChatHeader 
-              isRightPanelVisible={isRightPanelVisible}
-              onToggleRightPanel={onToggleRightPanel}
-            />
+            {!isMobile && (
+              <ChatHeader 
+                isRightPanelVisible={isRightPanelVisible}
+                onToggleRightPanel={onToggleRightPanel}
+              />
+            )}
             <CombinedMessageList onToolInvocationPress={onSelectToolInvocation} />
             <ChatInput />
           </>
@@ -55,5 +59,9 @@ const styles = StyleSheet.create({
     maxWidth: 800,
     height: '100%',
     position: 'relative',
+  },
+  mobileCenterPanel: {
+    width: '100%',
+    maxWidth: '100%',
   },
 }); 

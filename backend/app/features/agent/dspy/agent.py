@@ -3,7 +3,7 @@ from app.features.agent.dspy.callback import ReActCallback
 from app.features.agent.dspy.memory import MemoryManager
 from app.config.environment import environment
 from app.features.agent.dspy.tools.scrape_website import create_scrape_website_tool
-from app.features.agent.graph.tools import query_sql_db, query_mongo_db, search_web
+from app.features.agent.graph.tools import query_sql_db, search_web
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -85,6 +85,7 @@ async def prompt(
     user_input: str, 
     chat_service: Optional["ChatServiceDep"] = None, 
     chat: Optional["Chat"] = None,
+    session_token: str = None,
     max_history_messages: int = 10,
     summary_threshold: int = 20
 ):
@@ -113,6 +114,7 @@ async def prompt(
     memory_manager = MemoryManager(
         chat_service=chat_service,
         chat=chat,
+        session_token=session_token,
         max_recent_messages=max_history_messages,
         summary_threshold=summary_threshold
     )
@@ -174,15 +176,7 @@ async def prompt(
         error_message = f"DSPy ReAct parsing error: {str(e)}"
         print(error_message)
         
-        # Broadcast error to frontend if chat service is available
-        if chat_service and chat:
-            try:
-                await chat_service.send_error_message(
-                    chat=chat,
-                    content=f"I encountered a technical error while processing your request. The system had trouble parsing the response format. Please try rephrasing your question or try again in a moment.\n\nTechnical details: {str(e)}"
-                )
-            except Exception as broadcast_error:
-                print(f"Failed to broadcast error to frontend: {broadcast_error}")
+        pass
         
         # Re-raise the exception so it gets handled properly by the calling code
         raise e

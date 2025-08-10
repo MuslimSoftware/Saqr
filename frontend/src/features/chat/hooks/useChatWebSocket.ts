@@ -105,7 +105,7 @@ export const useChatWebSocket = ({
       }
       
       // Only handle standardized ChatEvent shapes
-      if (data.type !== 'message' && data.type !== 'tool' && data.type !== 'reasoning') {
+      if (data.type !== 'message' && data.type !== 'tool' && data.type !== 'reasoning' && data.type !== 'error') {
         console.warn('[useChatWebSocket] Unknown event type:', data.type);
         return;
       }

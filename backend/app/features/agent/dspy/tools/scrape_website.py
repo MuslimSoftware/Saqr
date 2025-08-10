@@ -7,7 +7,8 @@ from browser_use.agent.views import AgentOutput, AgentHistoryList, AgentBrain
 from browser_use.browser.views import BrowserState
 import os
 import tempfile
-from bson import ObjectId
+from datetime import datetime, timezone
+from beanie import PydanticObjectId
 from app.config.environment import environment
 
 if TYPE_CHECKING:
@@ -149,33 +150,83 @@ async def new_step_callback_save_screenshot(
     url, screenshot = state.url, state.screenshot
     current_state: AgentBrain = output.current_state
 
+    # Store screenshot in Redis and broadcast to frontend
     if screenshot and chat_service and chat:
         try:
-            print(f"Screenshot: {url}")
+            print(f"Screenshot taken for: {url}")
             
-            # Create the screenshot data URI
+            # Get Redis chat service for storing screenshot
+            from app.config.dependencies.services import get_redis_chat_service
+            redis_service = get_redis_chat_service()
+            
+            # We need the session token to store in Redis
+            # For now, we'll extract it from the user context if available
+            # This is a limitation - ideally session token should be passed through the tool chain
+            
+            # Create screenshot message and broadcast via WebSocket
+            screenshot_data = {
+                "url": url,
+                "screenshot_base64": screenshot,
+                "page_summary": current_state.page_summary,
+                "evaluation_previous_goal": current_state.evaluation_previous_goal,
+                "memory": current_state.memory,
+                "next_goal": current_state.next_goal,
+                "step_index": step_index
+            }
+            
+            # Create data URI for the screenshot
             data_uri = f"data:image/png;base64,{screenshot}"
-
-            # TODO: Uncomment when ScreenshotRepository is available
-            from app.features.chat.repositories import ScreenshotRepository
-            screenshot_repo = ScreenshotRepository()
             
-            # Save screenshot to the chat
-            created_screenshot = await screenshot_repo.create_screenshot(
-                chat_id=ObjectId(chat.id), 
-                image_data=data_uri,
-                page_summary=current_state.page_summary,
-                evaluation_previous_goal=current_state.evaluation_previous_goal,
-                memory=current_state.memory,
-                next_goal=current_state.next_goal
-            )
+            # Create screenshot data in the format frontend expects
+            import uuid
+            screenshot_data = {
+                "_id": str(uuid.uuid4()),
+                "chat_id": str(chat.id),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "image_data": data_uri,  # Full data URI that frontend can display
+                "page_summary": current_state.page_summary,
+                "evaluation_previous_goal": current_state.evaluation_previous_goal,
+                "memory": current_state.memory,
+                "next_goal": current_state.next_goal,
+            }
             
-            # Broadcast screenshot to frontend via chat_service
-            await chat_service.broadcast_screenshot_event(
-                chat=chat,
-                screenshot=created_screenshot,
-                step_index=step_index
-            )
+            # Send screenshot in the format frontend expects (screenshot_captured event)
+            screenshot_message = {
+                "type": "screenshot_captured",
+                "data": {
+                    "screenshot": screenshot_data
+                }
+            }
+            
+            # Broadcast directly via WebSocket repository to match expected format
+            import json
+            message_json = json.dumps(screenshot_message)
+            await chat_service.websocket_repository.broadcast_to_chat(message_json, str(chat.id))
+            
+            # Also try to store screenshot in Redis for persistence
+            try:
+                if hasattr(chat_service, 'current_session_token') and chat_service.current_session_token:
+                    from app.config.dependencies.services import get_redis_chat_service
+                    redis_service = get_redis_chat_service()
+                    
+                    chat_id_str = str(chat.id)
+                    redis_uuid = await redis_service._objectid_to_uuid(chat_id_str, chat_service.current_session_token)
+                    
+                    # Store screenshot in Redis using the built-in screenshot storage
+                    import uuid
+                    message_id = str(uuid.uuid4())
+                    screenshot_id = await redis_service.store_screenshot(
+                        redis_uuid,
+                        message_id,
+                        chat_service.current_session_token,
+                        screenshot.encode('utf-8') if isinstance(screenshot, str) else screenshot,
+                        "image/png"
+                    )
+                    print(f"✅ Screenshot stored in Redis with ID: {screenshot_id}")
+                
+            except Exception as storage_error:
+                print(f"⚠️  Screenshot storage failed: {storage_error}")
+                # Don't fail if storage fails - the screenshot was still broadcasted
             
             print(f"Screenshot saved and broadcasted for chat {chat.id}, step {step_index}")
             

@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useResponsiveLayout } from '@/features/shared/hooks';
 
 import { ChatContextType, Tab } from './ChatContext.types';
 import {
@@ -28,6 +29,7 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const router = useRouter();
+  const { isMobile } = useResponsiveLayout();
 
   // --- Core State managed directly by Context ---
   const [messages, setMessages] = useState<ChatEvent[] | null>(null);
@@ -36,7 +38,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   // --- Common Panel State ---
   const [isRightPanelVisible, setIsRightPanelVisible] = useState(false);
-  const [isLeftPanelVisible, setIsLeftPanelVisible] = useState(true);
+  const [isLeftPanelVisible, setIsLeftPanelVisible] = useState(!isMobile);
+
+  // Handle responsive layout changes - close panels on mobile when switching from desktop
+  useEffect(() => {
+    if (isMobile) {
+      setIsLeftPanelVisible(false);
+      setIsRightPanelVisible(false);
+    }
+  }, [isMobile]);
 
   // Custom wrapper for setIsRightPanelVisible to reset screenshot index when opening
   const setIsRightPanelVisibleWithReset = useCallback((visible: boolean | ((prev: boolean) => boolean)) => {
@@ -163,12 +173,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSelectedChatId(id);
         setMessages(null);
         setCurrentScreenshotIndex(0); // Reset to latest screenshot when changing chats
+        
+        // On mobile, close the left panel when selecting a chat
+        if (isMobile) {
+          setIsLeftPanelVisible(false);
+        }
     }
 
     if (Platform.OS !== 'web') {
       router.push(`/chat/${id}` as any);
     }
-  }, [router, selectedChatId, setSelectedChatId]);
+  }, [router, selectedChatId, setSelectedChatId, isMobile]);
 
   useEffect(() => {
     if (selectedChatId) {

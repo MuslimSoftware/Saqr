@@ -3,14 +3,15 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 // --- Configuration Loading --- 
-const ENV = process.env.APP_ENV || 'development';
+// Prefer EXPO_PUBLIC_* (Docker/Expo web builds), fallback to legacy names for local dev
+const ENV = process.env.EXPO_PUBLIC_APP_ENV || process.env.APP_ENV || 'development';
 dotenv.config({ path: path.resolve(__dirname, '.env') }); // Load root .env
 dotenv.config({ path: path.resolve(__dirname, `.env.${ENV}`), override: true }); // Load specific env
 
 // Read needed values directly from process.env
-const brandName = process.env.BRAND_NAME || 'DefaultAppName';
-const brandSlug = process.env.BRAND_SLUG || 'default-app-slug';
-const apiUrl = process.env.FE_API_URL;
+const brandName = process.env.EXPO_PUBLIC_BRAND_NAME || process.env.BRAND_NAME || 'DefaultAppName';
+const brandSlug = process.env.EXPO_PUBLIC_BRAND_SLUG || process.env.BRAND_SLUG || 'default-app-slug';
+const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.FE_API_URL;
 
 // --- Expo Config Export --- 
 import { ExpoConfig, ConfigContext } from 'expo/config';
@@ -29,7 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   };
 
   return {
-    name: brandName,
+    name: `${brandName} (demo)`,
     slug: brandSlug,
     version: '1.0.0',
     orientation: 'portrait',
@@ -58,7 +59,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: 'com.yourusername.' + brandSlug, // Update if needed
     },
     web: {
-      favicon: './src/assets/images/favicon.png'
+      favicon: './src/assets/images/logo_light_icon.png',
+      bundler: 'metro'
     },
     plugins: ['expo-router', 'expo-secure-store'],
     experiments: {

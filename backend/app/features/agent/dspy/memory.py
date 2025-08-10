@@ -17,13 +17,24 @@ class MemoryManager:
         self,
         chat_service: Optional["ChatServiceDep"] = None,
         chat: Optional["Chat"] = None,
+        session_token: str = None,
         max_recent_messages: int = 10,
         summary_threshold: int = 20
     ):
         self.chat_service = chat_service
         self.chat = chat
+        self.session_token = session_token
         self.max_recent_messages = max_recent_messages
         self.summary_threshold = summary_threshold
+        
+        # Debug logging for chat object
+        if self.chat:
+            print(f"MemoryManager: Chat object received")
+            print(f"MemoryManager: Chat ID: {self.chat.id}")
+            print(f"MemoryManager: Chat ID type: {type(self.chat.id)}")
+            print(f"MemoryManager: Chat object type: {type(self.chat)}")
+        else:
+            print("MemoryManager: No chat object provided")
         
     async def get_conversation_history(self) -> dspy.History:
         """
@@ -31,7 +42,8 @@ class MemoryManager:
         Uses summarization for long conversations and keeps recent messages detailed.
         Includes messages, tool calls, and results.
         """
-        if not self.chat_service or not self.chat:
+        if not self.chat_service or not self.chat or not self.chat.id:
+            print("Missing chat_service, chat, or chat.id")
             return dspy.History(messages=[])
             
         try:
@@ -48,61 +60,29 @@ class MemoryManager:
             
         except Exception as e:
             print(f"Error retrieving conversation history: {e}")
+            print(f"Error type: {type(e)}")
+            print(f"Chat ID: {self.chat.id if self.chat else None}")
+            print(f"Chat ID type: {type(self.chat.id) if self.chat and self.chat.id else None}")
+            print(f"Chat service available: {self.chat_service is not None}")
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
             return dspy.History(messages=[])
     
     async def get_recent_tool_results(self, tool_name: str = None, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Get recent tool execution results to help prevent duplicate tool calls.
+        Note: This functionality has been disabled as MongoDB dependencies were removed.
+        Redis-based chat storage is used instead.
         
         Args:
             tool_name: Specific tool name to filter by (optional)
             limit: Maximum number of tool results to return
             
         Returns:
-            List of recent tool results with tool name, inputs, outputs, and status
+            Empty list - tool results retrieval not available without MongoDB
         """
-        if not self.chat_service or not self.chat:
-            return []
-            
-        try:
-            from app.features.chat.models.chat_event_model import ChatEventType
-            
-            # Get recent tool events
-            tool_events = await self.chat_service.chat_event_repository.get_events_for_chat(
-                chat_id=self.chat.id,
-                limit=limit * 2,  # Get more to filter
-                type=ChatEventType.TOOL
-            )
-            
-            tool_results = []
-            for event in reversed(tool_events):  # Most recent first
-                if event.payload and hasattr(event.payload, 'tool_calls'):
-                    for tool_call in event.payload.tool_calls:
-                        # Filter by tool name if specified
-                        if tool_name and tool_call.tool_name != tool_name:
-                            continue
-                            
-                        # Only include completed tool calls with results
-                        if tool_call.output_payload and tool_call.status == "completed":
-                            tool_results.append({
-                                "tool_name": tool_call.tool_name,
-                                "input_payload": tool_call.input_payload,
-                                "output_payload": tool_call.output_payload,
-                                "completed_at": tool_call.completed_at,
-                                "status": tool_call.status
-                            })
-                            
-                            if len(tool_results) >= limit:
-                                break
-                    
-                    if len(tool_results) >= limit:
-                        break
-            
-            return tool_results[:limit]
-            
-        except Exception as e:
-            print(f"Error retrieving tool results: {e}")
-            return []
+        print("Tool results retrieval disabled - MongoDB dependencies removed")
+        return []
     
     async def _get_summarized_history(self, all_events: List[Dict[str, Any]]) -> dspy.History:
         """Get summarized older events plus recent detailed events."""
@@ -129,42 +109,59 @@ class MemoryManager:
         return dspy.History(messages=history_messages)
     
     async def _fetch_all_events(self, limit: int) -> List[Dict[str, Any]]:
-        """Fetch all types of events (messages, tools, reasoning) from the chat service."""
-        
-        # Get all events for the chat (messages, tools, reasoning)
-        events = await self.chat_service.chat_event_repository.get_events_for_chat(
-            chat_id=self.chat.id,
-            limit=limit,
-            # Don't filter by type - get all events
-        )
-        
-        # Convert events to a standardized format
-        conversation = []
-        for event in reversed(events):  # Reverse to get chronological order
-            if event.content and event.content.strip():
-                event_data = {
-                    "type": str(event.type),
-                    "author": str(event.author),
-                    "content": event.content,
-                    "timestamp": event.created_at
-                }
+        """
+        Fetch all types of events (messages, tools, reasoning) from Redis chat storage.
+        """
+        if not self.chat_service or not self.chat:
+            print("No chat service or chat available")
+            return []
+            
+        try:
+            # Check if we have session token
+            if not self.session_token:
+                print("MemoryManager: No session token provided, cannot fetch events")
+                return []
                 
-                # Add tool-specific data if present
-                if event.type == "tool" and event.payload:
-                    event_data["tool_calls"] = []
-                    if hasattr(event.payload, 'tool_calls'):
-                        for tool_call in event.payload.tool_calls:
-                            event_data["tool_calls"].append({
-                                "tool_name": tool_call.tool_name,
-                                "input_payload": tool_call.input_payload,
-                                "output_payload": tool_call.output_payload,
-                                "status": str(tool_call.status)
-                            })
+            # Try to get Redis service and fetch messages from Redis
+            from app.config.dependencies.services import get_redis_chat_service
+            redis_service = get_redis_chat_service()
+            
+            chat_id_str = str(self.chat.id)
+            print(f"MemoryManager: Fetching events for chat ID: {chat_id_str} with session token: {self.session_token}")
+            
+            # Convert ObjectId back to UUID for Redis operations
+            try:
+                redis_uuid = await redis_service._objectid_to_uuid(chat_id_str, self.session_token)
+                messages = await redis_service.get_messages_for_chat(redis_uuid, self.session_token, limit, 0)
                 
-                conversation.append(event_data)
-        
-        # Keep only the most recent events up to limit
-        return conversation[-limit:] if len(conversation) > limit else conversation
+                # Reverse message order for proper agent history context
+                # Redis returns newest-first, but agent needs oldest-first for conversation flow
+                messages.reverse()
+                
+                # Convert Redis messages to event format expected by the agent
+                events = []
+                for msg in messages:
+                    event = {
+                        "_id": msg["id"],
+                        "type": "message",
+                        "author": "user" if msg["role"] == "user" else "agent",
+                        "content": msg["content"],
+                        "created_at": msg["timestamp"],
+                        "payload": None
+                    }
+                    events.append(event)
+                
+                print(f"MemoryManager: Retrieved {len(events)} events from Redis")
+                return events
+                
+            except Exception as e:
+                print(f"MemoryManager: Error converting ObjectId or fetching from Redis: {e}")
+                # Fallback - return empty for now
+                return []
+                
+        except Exception as e:
+            print(f"MemoryManager: Error fetching events: {e}")
+            return []
     
     def _convert_to_history_format(self, events: List[Dict[str, Any]]) -> List[Dict[str, str]]:
         """

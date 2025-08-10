@@ -3,11 +3,11 @@ from datetime import datetime
 from typing import Optional, Literal, Dict, Any, Union
 from beanie import PydanticObjectId
 
-from app.features.chat.models.chat_event_model import ChatEvent
+# ChatEvent model removed - using Dict for compatibility
 from app.features.common.schemas.common_schemas import BaseResponse, PaginatedResponseData
 
 # --- Type Alias for Message Types ---
-MessageType = Literal['text', 'error', 'tool_use']
+MessageType = Literal['text', 'error', 'tool_use', 'tool_result', 'reasoning', 'screenshot', 'message']
 
 # --- Core Data Models --- 
 
@@ -149,6 +149,6 @@ class GetChatScreenshotsResponse(BaseResponse[PaginatedResponseData[ScreenshotDa
     """Response schema for getting screenshots for a chat."""
     pass
 
-class GetChatEventsResponse(BaseResponse[PaginatedResponseData[ChatEvent]]):
+class GetChatEventsResponse(BaseResponse[PaginatedResponseData[Dict[str, Any]]]):
     """Response schema for getting merged chat events."""
     pass

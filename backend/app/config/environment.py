@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     BROWSER_EXECUTION_MODEL: str = "gemini-2.0-flash"
     BROWSER_PLANNER_MODEL: str = "gemini-2.0-flash-lite"
 
-    # Sakila MySQL Database Settings
+    # Sakila MySQL Database Settings  
     EXTERNAL_SQL_DB_HOST: str = "sakila-mysql"
     EXTERNAL_SQL_DB_PORT: int = 3306
     EXTERNAL_SQL_DB_USER: str = "root"
@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
+
+    # Internal MongoDB Settings
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_DB_NAME: str = "saqr"
 
     # Security
     JWT_SECRET_KEY: str = "your-super-secret-key-change-this-in-production"

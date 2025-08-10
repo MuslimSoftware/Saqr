@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import json
 import uuid
 import hashlib
+import base64
 from beanie import PydanticObjectId
 
 from app.infrastructure.caching.redis import RedisStorage, RedisSessionManager
@@ -169,7 +170,7 @@ class RedisChatService:
             raise AppException(status_code=500, error_code="MESSAGES_FETCH_FAILED", message=str(e))
     
     async def add_message(self, chat_id: str, user_id: str, content: str, role: str = "user", 
-                         metadata: Optional[Dict] = None) -> Dict[str, Any]:
+                         metadata: Optional[Dict] = None, message_id: Optional[str] = None, timestamp: Optional[str] = None) -> Dict[str, Any]:
         """Add a message to a chat."""
         session_token = self._extract_session_token(user_id)
         
@@ -177,7 +178,7 @@ class RedisChatService:
         await self.get_chat_by_id(chat_id, user_id)
         
         try:
-            message = await self.redis_storage.add_message(session_token, chat_id, content, role, metadata)
+            message = await self.redis_storage.add_message(session_token, chat_id, content, role, metadata, message_id, timestamp)
             return message
         except ValueError as e:
             if "memory limit exceeded" in str(e).lower():
@@ -187,6 +188,41 @@ class RedisChatService:
             elif "chat not found" in str(e).lower():
                 raise AppException(status_code=404, error_code="CHAT_NOT_FOUND", message="Chat not found")
             raise AppException(status_code=500, error_code="MESSAGE_CREATION_FAILED", message=str(e))
+    
+    async def update_message(self, chat_id: str, user_id: str, message_id: str, content: str, metadata: Optional[Dict] = None, timestamp: Optional[str] = None) -> Dict[str, Any]:
+        """Update an existing message in a chat."""
+        session_token = self._extract_session_token(user_id)
+        
+        # Verify chat exists and user has access
+        await self.get_chat_by_id(chat_id, user_id)
+        
+        try:
+            updated_message = await self.redis_storage.update_message(session_token, chat_id, message_id, content, metadata, timestamp)
+            return updated_message
+        except ValueError as e:
+            if "not found" in str(e).lower():
+                raise AppException(status_code=404, error_code="MESSAGE_NOT_FOUND", message="Message not found")
+            raise AppException(status_code=500, error_code="MESSAGE_UPDATE_FAILED", message=str(e))
+    
+    async def upsert_message(self, chat_id: str, user_id: str, content: str, role: str = "agent", 
+                           metadata: Optional[Dict] = None, message_id: Optional[str] = None, timestamp: Optional[str] = None) -> Dict[str, Any]:
+        """Update existing message or create new one if it doesn't exist."""
+        session_token = self._extract_session_token(user_id)
+        
+        # Verify chat exists and user has access
+        await self.get_chat_by_id(chat_id, user_id)
+        
+        try:
+            message = await self.redis_storage.upsert_message(session_token, chat_id, content, role, metadata, message_id, timestamp)
+            return message
+        except ValueError as e:
+            if "memory limit exceeded" in str(e).lower():
+                raise AppException(status_code=429, error_code="MEMORY_LIMIT_EXCEEDED", message="Session memory limit exceeded")
+            elif "maximum messages" in str(e).lower():
+                raise AppException(status_code=429, error_code="MESSAGE_LIMIT_EXCEEDED", message="Maximum messages per chat exceeded")
+            elif "chat not found" in str(e).lower():
+                raise AppException(status_code=404, error_code="CHAT_NOT_FOUND", message="Chat not found")
+            raise AppException(status_code=500, error_code="MESSAGE_UPSERT_FAILED", message=str(e))
     
     async def store_screenshot(self, chat_id: str, message_id: str, user_id: str, 
                               screenshot_data: bytes, content_type: str = "image/png") -> str:
@@ -215,6 +251,61 @@ class RedisChatService:
             return screenshot
         except Exception as e:
             raise AppException(status_code=500, error_code="SCREENSHOT_FETCH_FAILED", message=str(e))
+    
+    async def get_chat_screenshots_for_redis(self, chat_id: str, user_id: str, limit: int = 5, before_timestamp: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Get screenshots for a specific chat from Redis."""
+        session_token = self._extract_session_token(user_id)
+        
+        try:
+            # Get all screenshot keys for this session
+            screenshot_keys = await self.redis_storage.redis_client.keys(f"session:{session_token}:screenshot:*")
+            screenshots = []
+            
+            for screenshot_key in screenshot_keys:
+                screenshot_raw = await self.redis_storage.redis_client.hgetall(screenshot_key)
+                if screenshot_raw and 'metadata' in screenshot_raw:
+                    metadata = json.loads(screenshot_raw['metadata'])
+                    
+                    # Filter by chat_id
+                    if metadata.get('chat_id') == chat_id:
+                        # Convert to frontend format
+                        image_data = None
+                        if 'data' in screenshot_raw:
+                            # Redis stores bytes, need to base64 encode for data URI
+                            if isinstance(screenshot_raw['data'], bytes):
+                                base64_data = base64.b64encode(screenshot_raw['data']).decode('utf-8')
+                            else:
+                                # Data is already string (base64 or other)
+                                base64_data = screenshot_raw['data']
+                            image_data = f"data:{metadata['content_type']};base64,{base64_data}"
+                        
+                        # Convert UUIDs to ObjectId format for backend schema compatibility
+                        from beanie import PydanticObjectId
+                        
+                        # For the response, we need to convert the chat_id back to ObjectId format
+                        # The screenshot ID stays as string since it's a UUID
+                        screenshot_data = {
+                            "_id": metadata['id'],  # Keep as UUID string - frontend expects string
+                            "chat_id": metadata['chat_id'],  # Keep as UUID string - will be converted in controller
+                            "image_data": image_data,
+                            "memory": f"Screenshot from message {metadata['message_id'][:8]}...",  # Simple memory/context
+                            "created_at": datetime.fromisoformat(metadata['created_at']),
+                            "updated_at": datetime.fromisoformat(metadata['created_at'])
+                        }
+                        screenshots.append(screenshot_data)
+            
+            # Sort by created_at descending (newest first)
+            screenshots.sort(key=lambda x: x['created_at'], reverse=True)
+            
+            # Apply before_timestamp filter if provided
+            if before_timestamp:
+                screenshots = [s for s in screenshots if s['created_at'] < before_timestamp]
+            
+            # Apply limit
+            return screenshots[:limit]
+            
+        except Exception as e:
+            raise AppException(status_code=500, error_code="SCREENSHOTS_FETCH_FAILED", message=str(e))
     
     async def delete_chat(self, chat_id: str, user_id: str) -> None:
         """Delete a chat and all its messages."""

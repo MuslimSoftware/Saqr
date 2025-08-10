@@ -3,6 +3,7 @@ import { StyleSheet, Pressable, ScrollView, Image, View, Dimensions, ActivityInd
 import { BgView, BaseColumn } from '@/features/shared/components/layout';
 import { paddings, borderRadii } from '@/features/shared/theme/spacing';
 import { useTheme } from '@/features/shared/context/ThemeContext';
+import { useResponsiveLayout } from '@/features/shared/hooks';
 import { useChat } from '../../context';
 import { Ionicons } from '@expo/vector-icons';
 import { iconSizes } from '@/features/shared/theme/sizes';
@@ -24,6 +25,7 @@ interface RightChatPanelProps {
 }
 
 const PANEL_WIDTH_PERCENT = 30;
+const MOBILE_WIDTH_PERCENT = 100;
 const ANIMATION_DURATION = 250;
 
 export const RightChatPanel: React.FC<RightChatPanelProps> = ({
@@ -32,6 +34,7 @@ export const RightChatPanel: React.FC<RightChatPanelProps> = ({
   selectedInvocationId,
 }) => {
   const { theme } = useTheme();
+  const { isMobile } = useResponsiveLayout();
   const { 
     screenshots, 
     loadingScreenshots, 
@@ -51,7 +54,8 @@ export const RightChatPanel: React.FC<RightChatPanelProps> = ({
     isImageModalOpen,
     setIsImageModalOpen,
   } = useChat();
-  const animatedWidth = useSharedValue(isVisible ? PANEL_WIDTH_PERCENT : 0);
+  const targetWidth = isMobile ? MOBILE_WIDTH_PERCENT : PANEL_WIDTH_PERCENT;
+  const animatedWidth = useSharedValue(isVisible ? targetWidth : 0);
   const justLoadedMoreRef = useRef(false);
   const fetchScreenshotsRef = useRef(fetchScreenshots);
 
@@ -70,10 +74,10 @@ export const RightChatPanel: React.FC<RightChatPanelProps> = ({
 
   useEffect(() => {
     animatedWidth.value = withTiming(
-      isVisible ? PANEL_WIDTH_PERCENT : 0,
+      isVisible ? targetWidth : 0,
       { duration: ANIMATION_DURATION, easing: Easing.inOut(Easing.ease) }
     );
-  }, [isVisible, animatedWidth]);
+  }, [isVisible, animatedWidth, targetWidth]);
 
   // Separate effect for fetching screenshots to avoid WebSocket disconnection
   // Use ref to avoid dependency on fetchScreenshots function
@@ -97,7 +101,7 @@ export const RightChatPanel: React.FC<RightChatPanelProps> = ({
   }, [selectedInvocationId, isVisible]);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const marginRightValue = isVisible ? paddings.medium : 0;
+    const marginRightValue = isVisible && !isMobile ? paddings.medium : 0;
     return {
       width: `${animatedWidth.value}%`,
       marginRight: withTiming(marginRightValue, { duration: ANIMATION_DURATION, easing: Easing.inOut(Easing.ease) }),
@@ -105,11 +109,23 @@ export const RightChatPanel: React.FC<RightChatPanelProps> = ({
     };
   });
 
-  const styles = getStyles(theme);
+  const styles = getStyles(theme, isMobile);
+
+  if (!isVisible) {
+    return null;
+  }
 
   return (
-    <Animated.View style={[styles.animatedContainer, animatedStyle]}>
-      <BgView style={styles.rightPanelContent}>
+    <>
+      {isMobile && isVisible && (
+        <Pressable style={styles.mobileBackdrop} onPress={onClose} />
+      )}
+      <Animated.View style={[
+        styles.animatedContainer, 
+        animatedStyle,
+        isMobile && styles.mobileContainer
+      ]}>
+        <BgView style={styles.rightPanelContent}>
         <Pressable style={styles.closeRightPanelButton} onPress={onClose}>
           <Ionicons name="close-outline" size={iconSizes.medium} color={theme.colors.text.secondary} />
         </Pressable>
@@ -187,15 +203,32 @@ export const RightChatPanel: React.FC<RightChatPanelProps> = ({
           loadingMoreScreenshots={loadingMoreScreenshots}
         />
       </BgView>
-    </Animated.View>
+      </Animated.View>
+    </>
   );
 };
 
-const getStyles = (theme: Theme) => StyleSheet.create({
+const getStyles = (theme: Theme, isMobile: boolean = false) => StyleSheet.create({
   animatedContainer: {
-    height: '97.5%',
-    borderRadius: borderRadii.large,
+    height: isMobile ? '100%' : '97.5%',
+    borderRadius: isMobile ? 0 : borderRadii.large,
     overflow: 'hidden',
+  },
+  mobileContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  mobileBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 999,
   },
   rightPanelContent: {
     height: '100%',

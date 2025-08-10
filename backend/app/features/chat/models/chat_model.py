@@ -1,22 +1,17 @@
-from beanie import Document, PydanticObjectId
-from pydantic import Field
+from pydantic import BaseModel, Field
+from beanie import PydanticObjectId
 from datetime import datetime, timezone
 from typing import Optional
 
-class Chat(Document):
-    """Chat model for MongoDB using Beanie ODM."""
+class Chat(BaseModel):
+    """Chat model - Pydantic model without database binding."""
+    id: Optional[PydanticObjectId] = Field(default=None)
     name: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     owner_id: PydanticObjectId = Field(...)
     latest_message_content: Optional[str] = Field(default=None)
     latest_message_timestamp: Optional[datetime] = Field(default=None)
-
-    class Settings:
-        name = "chats"
-        indexes = [
-            [ ("owner_id", 1) ]
-        ]
 
     class Config:
         json_schema_extra = {

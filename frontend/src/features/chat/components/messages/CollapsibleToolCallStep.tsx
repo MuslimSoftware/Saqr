@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, View, Pressable, Text, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { ToolExecution } from '@/api/types/chat.types';
@@ -46,7 +46,7 @@ export const CollapsibleToolCallStep: React.FC<CollapsibleToolCallStepProps> = (
     setIsStepExpanded(!isStepExpanded);
   };
 
-  const getStatusIcon = () => {
+  const statusIcon = useMemo(() => {
     if (toolCall.status === 'started' || toolCall.status === 'in_progress') {
       return <Ionicons name="cog" size={iconSizes.small} color={theme.colors.brand.primary} />;
     } else if (toolCall.status === 'error') {
@@ -54,11 +54,19 @@ export const CollapsibleToolCallStep: React.FC<CollapsibleToolCallStepProps> = (
     } else {
       return <Ionicons name="checkmark-circle" size={iconSizes.small} color={theme.colors.indicators.success} />;
     }
-  };
+  }, [toolCall.status, theme.colors.brand.primary, theme.colors.indicators.error, theme.colors.indicators.success]);
 
-  const getStatusColor = () => {
+  const statusColor = useMemo(() => {
     return toolCall.status === 'error' ? theme.colors.indicators.error : theme.colors.text.secondary;
-  };
+  }, [toolCall.status, theme.colors.indicators.error, theme.colors.text.secondary]);
+
+  const chevronIcon = useMemo(() => (
+    <Ionicons
+      name={isStepExpanded ? 'chevron-down' : 'chevron-forward'}
+      size={iconSizes.xsmall}
+      color={theme.colors.text.secondary}
+    />
+  ), [isStepExpanded, theme.colors.text.secondary]);
 
   const getFirstKwarg = () => {
     if (!toolCall.input_payload || Object.keys(toolCall.input_payload).length === 0) {
@@ -91,7 +99,7 @@ export const CollapsibleToolCallStep: React.FC<CollapsibleToolCallStepProps> = (
     >
       <Pressable style={styles.stepHeader} onPress={toggleStepExpanded}>
         <View style={styles.stepIcon}>
-          {getStatusIcon()}
+          {statusIcon}
         </View>
         <View style={styles.toolNameContainer}>
           <Text style={[styles.toolName, { color: theme.colors.text.primary }]}>
@@ -103,15 +111,11 @@ export const CollapsibleToolCallStep: React.FC<CollapsibleToolCallStepProps> = (
             </Text>
           )}
         </View>
-        <Text style={[styles.toolStatus, { color: getStatusColor() }]}>
+        <Text style={[styles.toolStatus, { color: statusColor }]}>
           {toolCall.status}
         </Text>
         <View style={styles.stepDropdownIcon}>
-          <Ionicons
-            name={isStepExpanded ? 'chevron-down' : 'chevron-forward'}
-            size={iconSizes.xsmall}
-            color={theme.colors.text.secondary}
-          />
+          {chevronIcon}
         </View>
       </Pressable>
       

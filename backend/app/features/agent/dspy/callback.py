@@ -9,7 +9,16 @@ if TYPE_CHECKING:
     from app.config.dependencies import ChatServiceDep
     from app.features.chat.models import Chat
     from beanie import PydanticObjectId
-from app.features.chat.models.chat_event_model import ChatEventType, ReasoningPayload, ToolStatus
+# Types previously from chat_event_model - now defined locally
+from typing import Literal
+ChatEventType = Literal['message', 'reasoning', 'tool_use', 'tool_result']
+ToolStatus = Literal['pending', 'completed', 'error']
+
+# Create constants for easier access
+class ToolStatus:
+    PENDING = 'pending'
+    COMPLETED = 'completed' 
+    ERROR = 'error'
 
 @dataclass
 class PendingOperation:
@@ -26,12 +35,17 @@ class ReActCallback(BaseCallback):
 
         self.reasoning_message_id = None
         self.reasoning_start_time = None
+        self.reasoning_start_timestamp = None  # Store initial timestamp for consistency
+        self.reasoning_trajectory = []  # Track meaningful reasoning steps
 
         self.operation_queue: List[PendingOperation] = []
         self.processing_queue = False
         
-        # Track tool events by tool name -> event_id (one trajectory per tool)
-        self.tool_events: Dict[str, str] = {}  # tool_name -> event_id
+        # Track tool events by tool name -> message_id (consistent IDs for updates)
+        self.tool_message_ids: Dict[str, str] = {}  # tool_name -> consistent_message_id
+        
+        # Track tool input payloads for updates
+        self.tool_input_payloads: Dict[str, Dict[str, Any]] = {}  # tool_name -> input_payload
         
         # Track call_id -> tool_name mapping for updates
         self._call_id_to_tool: Dict[str, str] = {}  # call_id -> tool_name
@@ -100,56 +114,29 @@ class ReActCallback(BaseCallback):
             
             async def create_reasoning_message():
                 try:
-                    reasoning_message = await self.chat_service.send_reasoning_message(
+                    # Generate a consistent ID for this reasoning session that will be used for all updates
+                    import uuid
+                    self.reasoning_message_id = str(uuid.uuid4())
+                    from datetime import timezone
+                    self.reasoning_start_time = datetime.now(timezone.utc)
+                    self.reasoning_start_timestamp = self.reasoning_start_time.isoformat()  # Store ISO string for consistency
+                    self.reasoning_trajectory = []  # Start with empty trajectory
+                    
+                    # Create initial reasoning message with consistent ID and timestamp
+                    await self.chat_service.send_reasoning_message(
                         chat=self.chat,
-                        content="",
-                        trajectory=[],
-                        status="thinking"
+                        content="Thinking...",
+                        trajectory=self.reasoning_trajectory,
+                        status="thinking",
+                        message_id=self.reasoning_message_id,  # Use consistent ID
+                        timestamp=self.reasoning_start_timestamp  # Use consistent timestamp
                     )
-                    self.reasoning_message_id = reasoning_message.id
-                    self.reasoning_start_time = datetime.now()
+                    print(f"✅ Started reasoning session {self.reasoning_message_id}")
                 except Exception as e:
+                    print(f"❌ Failed to create reasoning message: {e}")
                     self.reasoning_message_id = None
             
             self._queue_operation("create_reasoning_message", create_reasoning_message, "Creating reasoning message")
-            # TODO: Start thinking message
-
-    # def on_adapter_format_start(self, call_id, instance, inputs):
-    #     self._print_separator("ADAPTER FORMAT START", "📝")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"🔧 Instance: {self._format_data(instance)}")
-    #     print(f"📥 Inputs: {self._format_data(inputs)}")
-
-    # def on_adapter_format_end(self, call_id, outputs, exception=None):
-    #     self._print_separator("ADAPTER FORMAT END", "✅" if not exception else "❌")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"📤 Outputs: {self._format_data(outputs)}")
-    #     if exception:
-    #         print(f"💥 Exception: {self._format_data(exception)}")
-
-    # def on_lm_start(self, call_id, instance, inputs):
-    #     self._print_separator("LANGUAGE MODEL START", "🧠")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"🤖 Instance: {self._format_data(instance)}")
-    #     print(f"📥 Inputs: {self._format_data(inputs)}")
-
-    # def on_lm_end(self, call_id, outputs, exception=None):
-    #     self._print_separator("LANGUAGE MODEL END", "🎯" if not exception else "❌")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"📤 Outputs: {self._format_data(outputs)}")
-    #     if exception:
-    #         print(f"💥 Exception: {self._format_data(exception)}")
-
-    # def on_adapter_parse_start(self, call_id, instance, inputs):
-    #     self._print_separator("ADAPTER PARSE START", "🔍")
-    #     print(f"⏰ Timestamp: {self._get_timestamp()}")
-    #     print(f"🆔 Call ID: {call_id}")
-    #     print(f"🔧 Instance: {self._format_data(instance)}")
-    #     print(f"📥 Inputs: {self._format_data(inputs)}")
 
     def on_adapter_parse_end(self, call_id, outputs, exception=None):
         if exception:
@@ -159,14 +146,21 @@ class ReActCallback(BaseCallback):
             
             async def update_thought():
                 try:
-                    await self.chat_service.update_reasoning_message(
-                    chat=self.chat,
-                        message_id=self.reasoning_message_id,
-                        new_content=outputs.get('next_thought'),
-                        status="thinking"
+                    thought = outputs.get('next_thought')
+                    self.reasoning_trajectory.append(thought)
+                    
+                    # Update the same reasoning message with current thought as content
+                    await self.chat_service.send_reasoning_message(
+                        chat=self.chat,
+                        content=thought if thought else "Thinking...",
+                        trajectory=self.reasoning_trajectory,
+                        status="thinking",
+                        message_id=self.reasoning_message_id,  # Use same ID to update
+                        timestamp=self.reasoning_start_timestamp  # Preserve original timestamp
                     )
+                    print(f"✅ Updated reasoning with thought: {thought[:50] if thought else 'None'}...")
                 except Exception as e:
-                    pass
+                    print(f"❌ Failed to update reasoning with thought: {e}")
             
             self._queue_operation("update_thought", update_thought, "Updating reasoning message with thought")
 
@@ -174,14 +168,21 @@ class ReActCallback(BaseCallback):
             
             async def update_reasoning():
                 try:
-                    await self.chat_service.update_reasoning_message(
+                    reasoning_content = outputs.get('reasoning')
+                    # DO NOT add reasoning to trajectory - only thoughts should be in trajectory
+                    
+                    # Update the same reasoning message (but don't add to trajectory)
+                    await self.chat_service.send_reasoning_message(
                         chat=self.chat,
-                        message_id=self.reasoning_message_id,
-                        new_content=outputs.get('reasoning'),
-                        status="thinking"
+                        content=reasoning_content if reasoning_content else "Processing...",
+                        trajectory=self.reasoning_trajectory,  # Only contains thoughts
+                        status="thinking",
+                        message_id=self.reasoning_message_id,  # Use same ID to update
+                        timestamp=self.reasoning_start_timestamp  # Preserve original timestamp
                     )
+                    print(f"✅ Updated reasoning: {reasoning_content[:50] if reasoning_content else 'None'}...")
                 except Exception as e:
-                    pass
+                    print(f"❌ Failed to update reasoning: {e}")
             
             self._queue_operation("update_reasoning", update_reasoning, "Updating reasoning message with reasoning")
 
@@ -197,7 +198,9 @@ class ReActCallback(BaseCallback):
                     pass
             
             self._queue_operation("send_response", send_response, "Sending agent message")
-            self.tool_events.clear()
+            # Clear all tool tracking when conversation completes
+            self.tool_message_ids.clear()
+            self.tool_input_payloads.clear()
             self._call_id_to_tool.clear()
 
     def on_module_end(self, call_id, outputs, exception=None):
@@ -206,29 +209,36 @@ class ReActCallback(BaseCallback):
                 try:
                     # Calculate elapsed time
                     if self.reasoning_start_time:
-                        elapsed_time = datetime.now() - self.reasoning_start_time
+                        from datetime import timezone
+                        elapsed_time = datetime.now(timezone.utc) - self.reasoning_start_time
                         total_seconds = elapsed_time.total_seconds()
                         
                         if total_seconds < 1:
-                            content = f"Thought for {int(total_seconds * 1000)}ms"
+                            timing_info = f"Thought for {int(total_seconds * 1000)}ms"
                         elif total_seconds < 60:
-                            content = f"Thought for {total_seconds:.1f}s"
+                            timing_info = f"Thought for {total_seconds:.1f}s"
                         else:
                             minutes = int(total_seconds // 60)
                             seconds = int(total_seconds % 60)
-                            content = f"Thought for {minutes}m {seconds}s"
+                            timing_info = f"Thought for {minutes}m {seconds}s"
                     else:
-                        content = "Thought process completed"
+                        timing_info = "Thought for unknown time"
                     
-                    await self.chat_service.update_reasoning_message(
+                    # Don't add timing info to trajectory - it will show in the main content
+                    
+                    # Send final update to same reasoning message with complete status
+                    # Use the timing as the main content (what shows in the bubble header)
+                    await self.chat_service.send_reasoning_message(
                         chat=self.chat,
-                        message_id=self.reasoning_message_id,
-                        new_content=content,
-                        status="complete"
+                        content=timing_info,  # "Thought for 1.5s" instead of generic message
+                        trajectory=self.reasoning_trajectory,
+                        status="complete",
+                        message_id=self.reasoning_message_id,  # Use same ID for final update
+                        timestamp=self.reasoning_start_timestamp  # Preserve original start timestamp
                     )
-                    # print(f"✅ SUCCESS: Reasoning message completed")
+                    print(f"✅ Reasoning session completed: {timing_info}")
                 except Exception as e:
-                    pass
+                    print(f"❌ Failed to complete reasoning: {e}")
             
             self._queue_operation("complete_reasoning", complete_reasoning, "Completing reasoning message")
 
@@ -248,33 +258,30 @@ class ReActCallback(BaseCallback):
         else:
             input_payload = {"args": str(inputs)}
         
-        async def create_or_add_tool_event():
+        async def create_tool_message():
             try:
-                if tool_name in self.tool_events and self.tool_events[tool_name]:
-                    # Add to existing tool event trajectory
-                    tool_event = await self.chat_service.add_tool_call_to_event(
-                        chat=self.chat,
-                        tool_name=tool_name,
-                        input_payload=input_payload
-                    )
-                    if tool_event:
-                        pass
-                    else:
-                        raise Exception(f"Could not add to existing trajectory for {tool_name}")
-                else:
-                    # Create new tool event
-                    tool_event = await self.chat_service.send_tool_message(
-                        chat=self.chat,
-                        tool_name=tool_name,
-                        input_payload=input_payload
-                    )
-                    self.tool_events[tool_name] = str(tool_event.id)
+                # Generate consistent message ID for this tool execution
+                import uuid
+                tool_message_id = str(uuid.uuid4())
+                self.tool_message_ids[tool_name] = tool_message_id
+                # Store input payload for later updates
+                self.tool_input_payloads[tool_name] = input_payload
+                
+                # Create initial tool message with consistent ID
+                await self.chat_service.send_tool_message(
+                    chat=self.chat,
+                    tool_name=tool_name,
+                    input_payload=input_payload,
+                    message_id=tool_message_id
+                )
+                print(f"✅ Created tool message for {tool_name} with ID {tool_message_id}")
             except Exception as e:
-                print(f"❌ FAILED: Could not create/update tool message - {str(e)}")
-                # Remove failed entry
-                self.tool_events.pop(tool_name, None)
+                print(f"❌ FAILED: Could not create tool message for {tool_name} - {str(e)}")
+                # Remove failed entries
+                self.tool_message_ids.pop(tool_name, None)
+                self.tool_input_payloads.pop(tool_name, None)
         
-        self._queue_operation("create_tool_event", create_or_add_tool_event, f"Creating/updating tool message for {tool_name}")
+        self._queue_operation("create_tool_message", create_tool_message, f"Creating tool message for {tool_name}")
 
         # Store call_id -> tool_name mapping
         self._call_id_to_tool[call_id] = tool_name
@@ -282,9 +289,9 @@ class ReActCallback(BaseCallback):
     def on_tool_end(self, call_id, outputs, exception=None):
         # Get tool name from call_id mapping
         tool_name = self._call_id_to_tool.get(call_id)
-        event_id = self.tool_events.get(tool_name) if tool_name else None
+        tool_message_id = self.tool_message_ids.get(tool_name) if tool_name else None
 
-        # Update the tool event if we have one
+        # Update the tool message if we have one
         if self.chat_service and self.chat and tool_name and tool_name != "finish":
             # Prepare output payload
             output_payload = {}
@@ -299,33 +306,39 @@ class ReActCallback(BaseCallback):
             # Determine status
             status = ToolStatus.ERROR if exception else ToolStatus.COMPLETED
             
-            async def update_tool_event():
-                # Wait a bit for the tool event to be created if not available yet
+            async def update_tool_message():
+                # Wait a bit for the tool message to be created if not available yet
                 max_retries = 10
                 retry_count = 0
-                current_event_id = self.tool_events.get(tool_name)
+                current_message_id = self.tool_message_ids.get(tool_name)
                 
-                while not current_event_id and retry_count < max_retries:
-                    print(f"   ⏳ Waiting for tool event creation... (retry {retry_count + 1}/{max_retries})")
+                while not current_message_id and retry_count < max_retries:
+                    print(f"   ⏳ Waiting for tool message creation... (retry {retry_count + 1}/{max_retries})")
                     await asyncio.sleep(0.1)  # Wait 100ms
-                    current_event_id = self.tool_events.get(tool_name)
+                    current_message_id = self.tool_message_ids.get(tool_name)
                     retry_count += 1
                 
-                if current_event_id:
-                    try:
-                        from beanie import PydanticObjectId
-                        await self.chat_service.update_tool_event_by_id(
-                            event_id=PydanticObjectId(current_event_id),
-                            tool_name=tool_name,
-                            status=status,
-                            output_payload=output_payload
-                        )
-                    except Exception as e:
-                        pass
-                else:
-                    pass
+                # Update the same tool message with results using consistent ID
+                try:
+                    # Get the stored input payload
+                    stored_input_payload = self.tool_input_payloads.get(tool_name, {})
+                    
+                    await self.chat_service.send_tool_update(
+                        chat=self.chat,
+                        tool_name=tool_name,
+                        status="completed" if status == ToolStatus.COMPLETED else "error",
+                        output_payload=output_payload,
+                        input_payload=stored_input_payload,  # Include original input
+                        message_id=current_message_id  # Use same ID to update existing message
+                    )
+                    print(f"   ✅ Tool update sent for {tool_name} using message ID {current_message_id}")
+                except Exception as e:
+                    print(f"   ❌ Error sending tool update for {tool_name}: {e}")
             
-            self._queue_operation("update_tool_event", update_tool_event, f"Updating tool message for {tool_name}")
+            self._queue_operation("update_tool_message", update_tool_message, f"Updating tool message for {tool_name}")
         
-        # Clean up call_id mapping
-        self._call_id_to_tool.pop(call_id, None)
+        # Clean up mappings for this specific tool
+        if tool_name:
+            self._call_id_to_tool.pop(call_id, None)
+            # Clean up after tool completes (but keep message ID for potential retry)
+            # Don't remove tool_message_ids and tool_input_payloads here in case of retries

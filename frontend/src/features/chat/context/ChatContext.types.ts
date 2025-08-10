@@ -62,7 +62,7 @@ export interface ChatContextType extends ChatState {
   fetchMessages: (chatId: string) => void;
   fetchMoreMessages: () => void;
   refreshMessages: () => void;
-  fetchScreenshots: (chatId: string) => Promise<{ items: ScreenshotData[], total_items: number | null } | null>;
+  fetchScreenshots: (chatId: string) => Promise<void>;
   setSelectedChatId: (id: string | null) => void;
   fetchMoreScreenshots: () => Promise<{ items: ScreenshotData[], total_items: number | null } | null>;
   resetScreenshots: () => void;

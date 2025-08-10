@@ -105,8 +105,10 @@ export const updateChat = async (chatId: string, payload: ChatUpdatePayload): Pr
 export const getChatScreenshots = async (chatId: string, params: PaginationParams): Promise<GetChatScreenshotsResponse> => {
   // Restore query string building
   const queryString = buildQueryString(params); 
+  const url = `${CHAT_API_PREFIX}/${chatId}/screenshots${queryString}`;
+  
   // Pass the correct inner data type (PaginatedResponseData<ScreenshotData>) to the generic
-  return api.get<GetScreenshotsData>(`${CHAT_API_PREFIX}/${chatId}/screenshots${queryString}`);
+  return api.get<GetScreenshotsData>(url);
 }
 
 /**

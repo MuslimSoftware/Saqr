@@ -240,22 +240,15 @@ export const useChatApi = ({
     }, [deleteChatApi, resetDeleteChatError]);
 
     // --- MODIFIED Action to fetch screenshots --- 
-    const fetchScreenshots = useCallback(async (chatId: string): Promise<{ items: ScreenshotData[], total_items: number | null } | null> => {
-        if (!chatId) return null;
+    const fetchScreenshots = useCallback(async (chatId: string) => {
+        if (!chatId) return;
         try {
-            const fullResponse = await fetchScreenshotsPaginated([chatId], {}); 
-            if (fullResponse?.data) {
-              return {
-                items: fullResponse.data.items,
-                total_items: fullResponse.data.total_items ?? null
-              };
-            }
-            return null;
+            resetScreenshotsState();
+            await fetchScreenshotsPaginated([chatId], {}); 
         } catch (e) {
             console.error("Error fetching initial screenshots:", e); 
-            return null;
         }
-    }, [fetchScreenshotsPaginated]);
+    }, [fetchScreenshotsPaginated, resetScreenshotsState]);
 
     // --- MODIFIED Action to fetch more screenshots ---
     const fetchMoreScreenshots = useCallback(async (): Promise<{ items: ScreenshotData[], total_items: number | null } | null> => {

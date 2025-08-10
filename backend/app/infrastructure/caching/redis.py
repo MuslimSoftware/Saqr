@@ -199,7 +199,7 @@ class RedisStorage:
     
     # Message operations
     async def add_message(self, session_token: str, chat_id: str, content: str, 
-                         role: str = "user", metadata: Optional[Dict] = None) -> Dict[str, Any]:
+                         role: str = "user", metadata: Optional[Dict] = None, message_id: Optional[str] = None, timestamp: Optional[str] = None) -> Dict[str, Any]:
         """Add a message to a chat."""
         # Check memory limit
         message_size = len(content.encode('utf-8')) + (len(json.dumps(metadata)) if metadata else 0)
@@ -214,8 +214,13 @@ class RedisStorage:
         if chat['message_count'] >= MAX_MESSAGES_PER_CHAT:
             raise ValueError("Maximum messages per chat exceeded")
         
-        message_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc).isoformat()
+        # Use provided message_id or generate a new one
+        if message_id is None:
+            message_id = str(uuid.uuid4())
+        
+        # Use provided timestamp or generate current timestamp
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc).isoformat()
         
         message_data = {
             "id": message_id,
@@ -250,6 +255,67 @@ class RedisStorage:
         
         return {**message_data, "metadata": metadata}
     
+    async def update_message(self, session_token: str, chat_id: str, message_id: str, 
+                           content: str, metadata: Optional[Dict] = None, timestamp: Optional[str] = None) -> Dict[str, Any]:
+        """Update an existing message in a chat."""
+        # Check if message exists
+        message_key = f"session:{session_token}:chat:{chat_id}:message:{message_id}"
+        existing_message = await self.redis_client.hgetall(message_key)
+        
+        if not existing_message:
+            raise ValueError(f"Message {message_id} not found")
+        
+        # Update the message data
+        # Use provided timestamp or generate current timestamp for updates
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc).isoformat()
+        
+        updated_data = {
+            "content": content,
+            "metadata": json.dumps(metadata) if metadata else "",
+            "timestamp": timestamp  # Use provided timestamp or current time
+        }
+        
+        # Update in Redis
+        await self.redis_client.hset(message_key, mapping=updated_data)
+        await self.redis_client.expire(message_key, SESSION_EXPIRE_MINUTES * 60)
+        
+        # Update chat's latest message if this was the most recent
+        chat_key = f"session:{session_token}:chat:{chat_id}"
+        await self.redis_client.hset(
+            chat_key,
+            mapping={
+                "latest_message_content": content[:100] + "..." if len(content) > 100 else content,
+                "latest_message_timestamp": timestamp,
+                "updated_at": timestamp
+            }
+        )
+        
+        # Return updated message
+        updated_message = await self.redis_client.hgetall(message_key)
+        updated_message['metadata'] = json.loads(updated_message['metadata']) if updated_message['metadata'] else {}
+        return updated_message
+    
+    async def upsert_message(self, session_token: str, chat_id: str, content: str, 
+                           role: str = "agent", metadata: Optional[Dict] = None, message_id: Optional[str] = None, timestamp: Optional[str] = None) -> Dict[str, Any]:
+        """Update existing message or create new one if it doesn't exist."""
+        # Use provided message_id or generate a new one
+        if message_id is None:
+            message_id = str(uuid.uuid4())
+        
+        # Check if message exists
+        message_key = f"session:{session_token}:chat:{chat_id}:message:{message_id}"
+        existing_message = await self.redis_client.hgetall(message_key)
+        
+        if existing_message:
+            # Message exists - update it, always preserving the original timestamp
+            existing_timestamp = existing_message.get('timestamp')
+            
+            return await self.update_message(session_token, chat_id, message_id, content, metadata, existing_timestamp)
+        else:
+            # Message doesn't exist - create it
+            return await self.add_message(session_token, chat_id, content, role, metadata, message_id, timestamp)
+    
     async def get_messages(self, session_token: str, chat_id: str, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """Get messages for a chat with pagination."""
         message_keys = await self.redis_client.keys(f"session:{session_token}:chat:{chat_id}:message:*")
@@ -261,8 +327,8 @@ class RedisStorage:
                 message_data['metadata'] = json.loads(message_data['metadata']) if message_data['metadata'] else {}
                 messages.append(message_data)
         
-        # Sort by timestamp
-        messages.sort(key=lambda x: x['timestamp'])
+        # Sort by timestamp descending (newest first for chat applications)
+        messages.sort(key=lambda x: x['timestamp'], reverse=True)
         
         # Apply pagination
         return messages[offset:offset + limit]

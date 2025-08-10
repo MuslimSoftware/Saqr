@@ -5,19 +5,18 @@ pydantic-settings==2.9.1
 
 # Web Framework
 fastapi==0.115.12
-uvicorn==0.34.2
+uvicorn==0.29.0
 slowapi==0.1.9
-python-multipart==0.0.20
+python-multipart==0.0.18
 httpx==0.28.1
 
 # Database
-motor==3.7.0
-pymongo==4.12.1
-beanie==1.29.0
+redis==6.0.0
 SQLAlchemy==2.0.40
 pymysql
-redis==6.0.0
 sqlparse==0.5.3
+beanie==1.27.0
+motor==3.6.0
 
 # Authentication & Security
 python-jose==3.4.0
@@ -34,13 +33,14 @@ langchain-core==0.3.60
 langchain-google-genai==2.1.4
 langchain-tavily==0.1.6
 dspy==2.6.24
+litellm[proxy]==1.75.3
 
 # Browser Automation
 playwright==1.52.0
 browser-use==0.1.39
 
 # Utilities
-websockets==15.0.1
+websockets==13.1
 aiofiles==24.1.0
 
 # Testing

@@ -3,10 +3,11 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
-import { BaseRow } from '@/features/shared/components/layout';
+import { BaseRow, BaseColumn } from '@/features/shared/components/layout';
 import { paddings } from '@/features/shared/theme/spacing';
 import { useTheme } from '@/features/shared/context/ThemeContext';
 import { useChat } from './context';
+import { useResponsiveLayout } from '@/features/shared/hooks';
 import { Ionicons } from '@expo/vector-icons';
 import { iconSizes } from '@/features/shared/theme/sizes';
 import {
@@ -14,9 +15,11 @@ import {
   CenterChatPanel,
   RightChatPanel,
 } from './components';
+import { MobileHeader } from './components/MobileHeader';
 
 const ChatScreen = () => {
   const { theme } = useTheme();
+  const { isMobile } = useResponsiveLayout();
   const { clearRightPanelNotifications, isRightPanelVisible, setIsRightPanelVisible, isLeftPanelVisible, setIsLeftPanelVisible } = useChat();
   const [selectedInvocationId, setSelectedInvocationId] = useState<string | null>(null);
 
@@ -42,6 +45,38 @@ const ChatScreen = () => {
     }
   };
 
+  if (isMobile) {
+    return (
+      <BaseColumn style={styles.container}>
+        <MobileHeader
+          onToggleLeftPanel={toggleLeftPanel}
+          onToggleRightPanel={toggleRightPanel}
+          isRightPanelVisible={isRightPanelVisible}
+        />
+        
+        <BaseRow style={styles.mobileContent}>
+          <LeftChatPanel 
+            isVisible={isLeftPanelVisible}
+            onClose={toggleLeftPanel}
+          />
+
+          <CenterChatPanel 
+            isRightPanelVisible={isRightPanelVisible}
+            onToggleRightPanel={toggleRightPanel}
+            onSelectToolInvocation={handleSelectInvocation}
+          />
+
+          <RightChatPanel 
+            isVisible={isRightPanelVisible}
+            onClose={toggleRightPanel}
+            selectedInvocationId={selectedInvocationId}
+          />
+        </BaseRow>
+      </BaseColumn>
+    );
+  }
+
+  // Desktop layout
   return (
     <BaseRow style={styles.container}>
       {!isLeftPanelVisible && (
@@ -76,6 +111,10 @@ const ChatScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    position: 'relative',
+  },
+  mobileContent: {
     flex: 1,
     position: 'relative',
   },

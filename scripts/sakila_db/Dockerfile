@@ -1,11 +1,7 @@
-FROM mysql:5.7
+FROM mysql:8.0
 
-# Install wget using yum without updating everything
-RUN yum install -y wget && yum clean all && rm -rf /var/cache/yum
+# Copy local Sakila database files
+COPY sakila-db/sakila-schema.sql /docker-entrypoint-initdb.d/01-sakila-schema.sql
+COPY sakila-db/sakila-data.sql /docker-entrypoint-initdb.d/02-sakila-data.sql
 
-# Download Sakila schema and data into the directory that MySQL uses for initialization scripts
-RUN wget https://downloads.mysql.com/docs/sakila-db.tar.gz && \
-    tar -xvf sakila-db.tar.gz && \
-    cp sakila-db/sakila-schema.sql /docker-entrypoint-initdb.d/1_schema.sql && \
-    cp sakila-db/sakila-data.sql /docker-entrypoint-initdb.d/2_data.sql && \
-    rm -rf sakila-db.tar.gz sakila-db
+EXPOSE 3306

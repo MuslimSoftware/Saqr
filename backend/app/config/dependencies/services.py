@@ -10,15 +10,13 @@ from app.features.chat.services import ChatService
 from app.features.chat.services.redis_chat_service import RedisChatService
 from app.features.agent.services import AgentService
 from app.features.user.repositories import UserRepository
-from app.features.chat.repositories import ChatRepository, WebSocketRepository, ScreenshotRepository, ChatEventRepository
+from app.features.chat.repositories import ChatRepository, WebSocketRepository
 
 # --- Import Provider Functions for Dependencies --- #
 from .repositories import (
     get_user_repository,
     get_chat_repository,
     get_websocket_repository,
-    get_screenshot_repository,
-    get_chat_event_repository,
 )
 # Need to define service providers before they are used in Depends()
 # This requires careful ordering or potentially moving providers
@@ -51,15 +49,11 @@ def get_auth_service(
 
 def get_chat_service(
     chat_repo: Annotated[ChatRepository, Depends(get_chat_repository)],
-    screenshot_repository: Annotated[ScreenshotRepository, Depends(get_screenshot_repository)],
-    websocket_repository: Annotated[WebSocketRepository, Depends(get_websocket_repository)],
-    chat_event_repository: Annotated[ChatEventRepository, Depends(get_chat_event_repository)]
+    websocket_repository: Annotated[WebSocketRepository, Depends(get_websocket_repository)]
 ) -> ChatService:
     return ChatService(
         chat_repository=chat_repo,
-        screenshot_repository=screenshot_repository,
-        websocket_repository=websocket_repository,
-        chat_event_repository=chat_event_repository
+        websocket_repository=websocket_repository
     )
 
 def get_redis_chat_service() -> RedisChatService:
