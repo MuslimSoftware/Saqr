@@ -9,6 +9,8 @@ Saqr was made as an AI agent meant to empower me in my personal career, inspired
 - Query SQL: Queries the Sakila sample DB
 - Super Web Search: Scrapes websites to fulfill the user's request
 
+Try it out: https://saqr.younesbenketira.com
+
 https://github.com/user-attachments/assets/4d2d600e-4b80-47f1-837e-b119e63f500e
 
 ## Features
