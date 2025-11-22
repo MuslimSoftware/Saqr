@@ -101,8 +101,8 @@ async def prompt(
     """
     # Configure DSPy with explicit adapter settings for better parsing
     lm = dspy.LM(
-        model="gemini/gemini-2.0-flash-exp", 
-        api_key=environment.GEMINI_API_KEY,
+        model="openai/gpt-4o", 
+        api_key=environment.OPENAI_API_KEY,
         # Add explicit configuration to help with parsing
         max_tokens=4000,
         temperature=0.1

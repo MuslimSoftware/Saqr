@@ -25,13 +25,10 @@ services:
       EXTERNAL_SQL_DB_MAX_OVERFLOW: ${EXTERNAL_SQL_DB_MAX_OVERFLOW:-10}
       EXTERNAL_SQL_DB_ECHO: ${EXTERNAL_SQL_DB_ECHO:-true}  # Enable SQL logging in dev
       # AI
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       AI_AGENT_MODEL: ${AI_AGENT_MODEL:-}
       BROWSER_EXECUTION_MODEL: ${BROWSER_EXECUTION_MODEL:-}
       BROWSER_PLANNER_MODEL: ${BROWSER_PLANNER_MODEL:-}
-      # Google credentials (Coolify-friendly)
-      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
-      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp-key.json
     depends_on:
       redis:
         condition: service_healthy

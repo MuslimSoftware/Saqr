@@ -18,12 +18,11 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     API_VERSION_PREFIX: str = "/v1"
 
-    # Google AI API Settings
-    GEMINI_API_KEY: str = "AIzaSyB0000000000000000000000000000000"
-    GOOGLE_APPLICATION_CREDENTIALS: str = "dsjif83.json"
-    AI_AGENT_MODEL: str = "gemini-2.5-flash-preview-05-20"
-    BROWSER_EXECUTION_MODEL: str = "gemini-2.0-flash"
-    BROWSER_PLANNER_MODEL: str = "gemini-2.0-flash-lite"
+    # OpenAI API Settings
+    OPENAI_API_KEY: str = "sk-proj-00000000000000000000000000000000"
+    AI_AGENT_MODEL: str = "gpt-4o"
+    BROWSER_EXECUTION_MODEL: str = "gpt-4o"
+    BROWSER_PLANNER_MODEL: str = "gpt-4o"
 
     # Sakila MySQL Database Settings  
     EXTERNAL_SQL_DB_HOST: str = "sakila-mysql"

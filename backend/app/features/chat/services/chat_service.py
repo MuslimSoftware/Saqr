@@ -150,8 +150,8 @@ class ChatService:
             
             # Configure DSPy
             lm = dspy.LM(
-                model="gemini/gemini-2.0-flash-exp",
-                api_key=environment.GEMINI_API_KEY,
+                model="openai/gpt-4o",
+                api_key=environment.OPENAI_API_KEY,
                 max_tokens=50,
                 temperature=0.3
             )

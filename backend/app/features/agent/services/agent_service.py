@@ -62,12 +62,9 @@ class AgentService:
         # Handle API quota/rate limit errors
         if ("rate limit" in error_str or "quota" in error_str or "resource_exhausted" in error_str or 
             "429" in error_str or "quotafailure" in error_str):
-            if "gemini" in error_str or "generativelanguage" in error_str or "vertexai" in error_str:
-                return ("🚫 API Quota Exceeded\n\nI've reached the daily limit for the Gemini API. This typically resets after 24 hours.")
-            else:
-                return ("🚫 **Rate Limit Exceeded**\n\n"
-                       "I'm being rate limited by the AI service. Please wait a moment and try again.\n\n"
-                       "This usually resolves itself in a few minutes.")
+            return ("🚫 **Rate Limit Exceeded**\n\n"
+                   "I'm being rate limited by the OpenAI API. Please wait a moment and try again.\n\n"
+                   "This usually resolves itself in a few minutes.")
         
         # Handle authentication errors
         if "authentication" in error_str or "api key" in error_str or "unauthorized" in error_str:
